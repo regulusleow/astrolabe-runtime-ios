@@ -1,0 +1,12 @@
+{
+  "requestID": "00000000-0000-4000-8000-000000000001",
+  "protocolVersion": { "major": 2, "minor": 0 },
+  "method": "handshake",
+  "parameters": {
+    "client": { "name": "astrolabe-host", "version": "2.0.0" },
+    "supportedProtocolRange": {
+      "minimum": { "major": 2, "minor": 0 },
+      "maximum": { "major": 2, "minor": 0 }
+    }
+  }
+}

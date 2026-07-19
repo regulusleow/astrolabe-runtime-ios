@@ -1,0 +1,6 @@
+{
+  "requestID": "00000000-0000-4000-8000-000000000002",
+  "protocolVersion": { "major": 2, "minor": 0 },
+  "method": "applicationInfo",
+  "parameters": {}
+}

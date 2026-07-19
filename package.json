@@ -1,0 +1,12 @@
+{
+  "name": "astrolabe-runtime-ios",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "version:check": "node scripts/version-sync.mjs --check",
+    "version:set": "node scripts/version-sync.mjs --set",
+    "release:prepare": "node scripts/release-prepare.mjs",
+    "test": "npm run version:check && node --test test/*.test.mjs"
+  }
+}
