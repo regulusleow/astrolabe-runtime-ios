@@ -1,5 +1,7 @@
 # Astrolabe Runtime for iOS
 
+English | [简体中文](README.zh-CN.md)
+
 Astrolabe Runtime for iOS exposes UIKit and Core Animation inspection data to
 the Astrolabe Host during development. Runtime activation is compiled out of
 Release builds.
