@@ -2,3 +2,4 @@
 .codegraph/
 .swiftpm/
 .DS_Store
+Package.resolved
