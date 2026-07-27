@@ -57,8 +57,4 @@ jobs:
         run: xcodebuild -version
 
       - name: Run iOS Simulator tests
-        run: |
-          xcodebuild \
-            -scheme astrolabe-runtime-ios \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' \
-            test
+        run: scripts/run-ios-simulator-tests.sh
