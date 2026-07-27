@@ -284,7 +284,7 @@ Completed runtime migration steps:
 
 1. The platform-neutral wire contract, JSON Schemas, and fixtures live in the
    independent `astrolabe-protocol` repository.
-2. Runtime and Host both lock `AstrolabeProtocol` to package version `1.0.0`.
+2. Runtime and Host both lock `AstrolabeProtocol` to package version `2.0.0`.
 3. The Runtime package no longer publishes or maintains a duplicate protocol
    target.
 4. Handshake, App information, hierarchy, node detail, simulator TCP, and USB

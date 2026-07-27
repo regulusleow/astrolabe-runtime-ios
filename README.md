@@ -6,7 +6,7 @@ Astrolabe Runtime for iOS exposes UIKit and Core Animation inspection data to
 the Astrolabe Host during development. Runtime activation is compiled out of
 Release builds.
 
-Current package release: `1.0.0`.
+Current package release: `2.0.0`.
 
 ## Requirements
 

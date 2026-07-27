@@ -9,7 +9,7 @@ import AstrolabeProtocol
 
 public enum AstrolabeRuntimeSDK {
     /// Release version advertised by the embedded runtime.
-    public static let runtimeVersion = "1.0.0"
+    public static let runtimeVersion = "2.0.0"
 
     public static var protocolVersion: RuntimeProtocolVersion {
         .v2

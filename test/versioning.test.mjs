@@ -36,6 +36,10 @@ test("version synchronization updates runtime release metadata", () => {
       readFileSync(join(fixture.root, fixture.readmePath), "utf8"),
       /Current package release: `2\.0\.0`/
     );
+    assert.match(
+      readFileSync(join(fixture.root, fixture.chineseReadmePath), "utf8"),
+      /Package.*`2\.0\.0`/
+    );
     assert.deepEqual(versionConsistencyIssues(fixture.root), []);
   } finally {
     fixture.cleanup();
@@ -138,9 +142,11 @@ function makeVersionFixture() {
   const root = mkdtempSync(join(tmpdir(), "astrolabe-runtime-version-test-"));
   const swiftPath = "Sources/AstrolabeRuntime/AstrolabeRuntime.swift";
   const readmePath = "README.md";
+  const chineseReadmePath = "README.zh-CN.md";
   const expectedVersionedPaths = [
     swiftPath,
     readmePath,
+    chineseReadmePath,
     "package-lock.json",
     "package.json"
   ];
@@ -167,6 +173,10 @@ function makeVersionFixture() {
     "Current package release: `0.1.3`.\n"
   );
   writeFileSync(
+    join(root, chineseReadmePath),
+    "Localized Package release: `0.1.3`.\n"
+  );
+  writeFileSync(
     join(root, "Package.swift"),
     '.package(url: "https://github.com/regulusleow/astrolabe-protocol.git", exact: "2.0.0")\n'
   );
@@ -175,6 +185,7 @@ function makeVersionFixture() {
     root,
     swiftPath,
     readmePath,
+    chineseReadmePath,
     expectedVersionedPaths,
     cleanup: () => rmSync(root, { recursive: true, force: true })
   };

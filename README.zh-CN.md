@@ -5,7 +5,7 @@
 Astrolabe Runtime for iOS 在开发期间向 Astrolabe Host 暴露 UIKit 和 Core Animation
 检查数据。Release 构建不会编译 Runtime 激活逻辑。
 
-当前 Package 版本：`1.0.0`。
+当前 Package 版本：`2.0.0`。
 
 ## 环境要求
 

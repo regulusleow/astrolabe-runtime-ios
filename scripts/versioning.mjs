@@ -6,6 +6,7 @@ const runtimeMetadataPath = "Sources/AstrolabeRuntime/AstrolabeRuntime.swift";
 export const versionedPaths = Object.freeze([
   runtimeMetadataPath,
   "README.md",
+  "README.zh-CN.md",
   "package-lock.json",
   "package.json"
 ]);
@@ -13,6 +14,8 @@ export const versionedPaths = Object.freeze([
 const releaseVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const swiftVersionPattern = /static let runtimeVersion = "(\d+\.\d+\.\d+)"/g;
 const documentationVersionPattern = /Current package release: `(\d+\.\d+\.\d+)`/g;
+const localizedDocumentationVersionPattern =
+  /^(.*Package.*`)(\d+\.\d+\.\d+)(`.*)$/gm;
 
 export function assertReleaseVersion(version) {
   if (!releaseVersionPattern.test(version)) {
@@ -72,6 +75,11 @@ export function synchronizeRepositoryVersion(projectRoot, version) {
       join(projectRoot, "README.md"),
       documentationVersionPattern,
       `Current package release: \`${version}\``
+    ),
+    textVersionUpdate(
+      join(projectRoot, "README.zh-CN.md"),
+      localizedDocumentationVersionPattern,
+      `$1${version}$3`
     )
   ];
   updates.forEach(({ path, content }) => writeFileSync(path, content));
@@ -105,6 +113,14 @@ export function versionConsistencyIssues(projectRoot) {
     documentationVersionPattern,
     expectedVersion,
     issues
+  );
+  inspectTextVersion(
+    join(projectRoot, "README.zh-CN.md"),
+    "README.zh-CN.md",
+    localizedDocumentationVersionPattern,
+    expectedVersion,
+    issues,
+    2
   );
   return issues;
 }
@@ -145,13 +161,25 @@ function inspectJSONVersion(path, displayPath, expectedVersion, issues) {
   );
 }
 
-function inspectTextVersion(path, displayPath, pattern, expectedVersion, issues) {
+function inspectTextVersion(
+  path,
+  displayPath,
+  pattern,
+  expectedVersion,
+  issues,
+  captureIndex = 1
+) {
   const matches = [...readFileSync(path, "utf8").matchAll(pattern)];
   if (matches.length !== 1) {
     issues.push(`${displayPath}: expected one version field, found ${matches.length}`);
     return;
   }
-  appendVersionIssue(displayPath, matches[0][1], expectedVersion, issues);
+  appendVersionIssue(
+    displayPath,
+    matches[0][captureIndex],
+    expectedVersion,
+    issues
+  );
 }
 
 function appendVersionIssue(path, actualVersion, expectedVersion, issues) {
