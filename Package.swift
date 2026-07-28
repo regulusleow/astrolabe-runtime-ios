@@ -11,7 +11,11 @@ let package = Package(
     products: [
         .library(
             name: "AstrolabeRuntime",
-            targets: ["AstrolabeRuntime"]
+            type: .dynamic,
+            targets: [
+                "AstrolabeRuntime",
+                "AstrolabeRuntimeBootstrap"
+            ]
         )
     ],
     dependencies: [
@@ -23,6 +27,11 @@ let package = Package(
     targets: [
         .target(
             name: "AstrolabeRuntimeObjC",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "AstrolabeRuntimeBootstrap",
+            dependencies: ["AstrolabeRuntime"],
             publicHeadersPath: "include"
         ),
         .target(
@@ -82,6 +91,7 @@ let package = Package(
             name: "AstrolabeRuntimeTests",
             dependencies: [
                 "AstrolabeRuntime",
+                "AstrolabeRuntimeCore",
                 .product(
                     name: "AstrolabeProtocol",
                     package: "astrolabe-protocol"

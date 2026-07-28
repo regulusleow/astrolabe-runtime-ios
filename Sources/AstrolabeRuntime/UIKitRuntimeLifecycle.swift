@@ -11,7 +11,7 @@ import AstrolabeRuntimeCore
 import AstrolabeRuntimeUIKit
 import UIKit
 
-public enum UIKitRuntimeLifecycleState: Equatable, Sendable {
+package enum UIKitRuntimeLifecycleState: Equatable, Sendable {
     /// Runtime has no active listener.
     case stopped
 
@@ -25,10 +25,7 @@ public enum UIKitRuntimeLifecycleState: Equatable, Sendable {
     case stopping
 }
 
-public enum UIKitRuntimeLifecycleError: Error, Equatable, Sendable {
-    /// Runtime activation is compiled out for the current build configuration.
-    case unavailableInCurrentBuild
-
+package enum UIKitRuntimeLifecycleError: Error, Equatable, Sendable {
     /// The App-specific inspection policy rejected activation.
     case inspectionNotAllowed
 
@@ -37,19 +34,21 @@ public enum UIKitRuntimeLifecycleError: Error, Equatable, Sendable {
 
     /// Transport started without publishing its bound endpoint.
     case missingEndpoint
-
 }
 
 @MainActor
-public final class UIKitRuntimeLifecycle: Sendable {
+package final class UIKitRuntimeLifecycle:
+    RuntimeProcessLifecycle,
+    Sendable
+{
     /// Current lifecycle state for diagnostics and integration coordination.
-    public private(set) var state: UIKitRuntimeLifecycleState = .stopped
+    package private(set) var state: UIKitRuntimeLifecycleState = .stopped
 
     private let transport: LocalTCPRuntimeTransport
     private let server: RuntimeServer
     private let inspectionAuthorization: @MainActor @Sendable () -> Bool
 
-    public init(
+    package init(
         configuration: RuntimeServerConfiguration,
         portSelection: LocalTCPRuntimePortSelection = .platformDefault,
         inspectionAuthorization: @escaping @MainActor @Sendable () -> Bool = {
@@ -77,11 +76,10 @@ public final class UIKitRuntimeLifecycle: Sendable {
     }
 
     @discardableResult
-    public func start() async throws -> RuntimeTransportEndpoint {
+    package func start() async throws -> RuntimeTransportEndpoint {
         guard state == .stopped else {
             throw UIKitRuntimeLifecycleError.invalidState
         }
-        #if DEBUG
         guard inspectionAuthorization() else {
             throw UIKitRuntimeLifecycleError.inspectionNotAllowed
         }
@@ -102,12 +100,9 @@ public final class UIKitRuntimeLifecycle: Sendable {
             state = .stopped
             throw error
         }
-        #else
-        throw UIKitRuntimeLifecycleError.unavailableInCurrentBuild
-        #endif
     }
 
-    public func stop() async {
+    package func stop() async {
         guard state != .stopped, state != .stopping else {
             return
         }

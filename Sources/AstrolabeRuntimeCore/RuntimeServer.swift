@@ -63,9 +63,6 @@ package actor RuntimeServer {
     }
 
     package func start() async throws {
-        #if !DEBUG
-        throw RuntimeServerError.unavailableInCurrentBuild
-        #else
         guard acceptTask == nil else {
             throw RuntimeServerError.alreadyRunning
         }
@@ -86,7 +83,6 @@ package actor RuntimeServer {
                 await self?.transportStopped(runID: runID)
             }
         }
-        #endif
     }
 
     package func stop() async {
@@ -277,7 +273,6 @@ package actor RuntimeServer {
 }
 
 package enum RuntimeServerError: Error, Equatable, Sendable {
-    case unavailableInCurrentBuild
     case alreadyRunning
     case invalidRequestTimeout
     case invalidMaximumConcurrentRequests

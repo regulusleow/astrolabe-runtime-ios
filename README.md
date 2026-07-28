@@ -3,10 +3,11 @@
 English | [简体中文](README.zh-CN.md)
 
 Astrolabe Runtime for iOS exposes UIKit and Core Animation inspection data to
-the Astrolabe Host during development. Runtime activation is compiled out of
-Release builds.
+the Astrolabe Host during development. Linking the dynamic framework is the
+complete integration: the Runtime starts automatically when an eligible
+application process loads it.
 
-Current package release: `2.0.0`.
+Current package release: `2.1.0`.
 
 ## Requirements
 
@@ -22,49 +23,24 @@ Add the following package in Xcode:
 https://github.com/regulusleow/astrolabe-runtime-ios
 ```
 
-Link the `AstrolabeRuntime` product to the application target.
+Link and embed the `AstrolabeRuntime` product only in application targets that
+are allowed to expose runtime inspection data, such as Debug and internal Beta
+targets. Existing integrations upgraded from the former static product must
+verify that the framework is configured as `Embed & Sign`.
 
 ## Integration
 
-Start and stop the Runtime from the active scene lifecycle.
+No source integration is required. Do not import the module or add
+`AppDelegate` or `SceneDelegate` lifecycle calls. The dynamic framework
+installs its process-level lifecycle observer when it is loaded, starts after
+application launch, and keeps the same Runtime instance across foreground and
+background transitions.
 
-Objective-C:
-
-```objc
-@import AstrolabeRuntime;
-
-- (void)sceneDidBecomeActive:(UIScene *)scene {
-#if DEBUG
-    [ASTRuntime start];
-#endif
-}
-
-- (void)sceneDidEnterBackground:(UIScene *)scene {
-#if DEBUG
-    [ASTRuntime stop];
-#endif
-}
-```
-
-Swift:
-
-```swift
-func sceneDidBecomeActive(_ scene: UIScene) {
-#if DEBUG
-    ASTRuntime.start()
-#endif
-}
-
-func sceneDidEnterBackground(_ scene: UIScene) {
-#if DEBUG
-    ASTRuntime.stop()
-#endif
-}
-```
-
-Use `startWithCompletion:` when Objective-C code needs to handle startup
-failures. `UIKitRuntimeLifecycle` is available for custom port selection,
-request limits, or inspection authorization.
+The Runtime does not inspect `DEBUG` or application configuration names.
+Linking and embedding the product enables it in any build configuration.
+Release and App Store targets must therefore remove `AstrolabeRuntime` from
+their dependency graph and final application bundle. Treat a final artifact
+scan as a required release gate.
 
 ## Capabilities
 
@@ -84,10 +60,11 @@ discarded when the Runtime stops or the App process exits.
 
 | Target | Responsibility |
 | --- | --- |
-| `AstrolabeRuntimeCore` | Protocol server, routing, sessions, transport, node registry, and platform-independent patch coordination used by the iOS SDK. |
-| `AstrolabeRuntimeUIKit` | UIKit and Core Animation collection, attribute mapping, Auto Layout, accessibility, and allowlisted mutations. |
-| `AstrolabeRuntime` | Public `ASTRuntime` facade, SDK metadata, lifecycle, and dependency composition. |
-| `AstrolabeRuntimeObjC` | Minimal Objective-C Runtime metadata adapter. |
+| `AstrolabeRuntimeCore` | Protocol server, routing, sessions, transport, node registry, and platform-independent patch coordination. |
+| `AstrolabeRuntimeUIKit` | UIKit and Core Animation collection, attributes, layout, accessibility, and allowlisted mutations. |
+| `AstrolabeRuntime` | Automatic installer, process lifecycle coordination, SDK metadata, and dependency composition. |
+| `AstrolabeRuntimeBootstrap` | Objective-C dynamic-framework load hook with no public lifecycle API. |
+| `AstrolabeRuntimeObjC` | Objective-C Runtime metadata adapter used by UIKit collection. |
 
 The package implements the platform-neutral Wire Protocol from
 `astrolabe-protocol`. iOS-specific collection, mapping, lifecycle, and port
@@ -102,6 +79,7 @@ npm ci
 npm test
 swift test --parallel
 swift build -c release --product AstrolabeRuntime
+scripts/verify-auto-start-artifact.sh
 ```
 
 Run UIKit and integration tests in an iOS Simulator:
@@ -115,9 +93,11 @@ xcodebuild \
 
 ## Security
 
-The Runtime listens only on a loopback TCP endpoint and is unavailable in
-Release builds. USB transport also relies on host-device pairing enforced by
-usbmux. Do not distribute Debug builds containing sensitive runtime data.
+The Runtime listens only on a loopback TCP endpoint. USB transport also relies
+on host-device pairing enforced by usbmux. The Runtime has no internal build
+configuration gate: if its framework is present in a Release build, it will
+start automatically. Do not distribute builds containing the Runtime or
+sensitive runtime data.
 
 Temporary mutation is restricted to the Runtime-owned patch catalog. Arbitrary
 selectors, method invocation, and business actions are not exposed.
