@@ -7,7 +7,7 @@ the Astrolabe Host during development. Linking the dynamic framework is the
 complete integration: the Runtime starts automatically when an eligible
 application process loads it.
 
-Current package release: `2.0.0`.
+Current package release: `2.1.0`.
 
 ## Requirements
 

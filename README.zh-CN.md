@@ -6,7 +6,7 @@ Astrolabe Runtime for iOS 在开发期间向 Astrolabe Host 暴露 UIKit 和 Cor
 检查数据。链接 dynamic Framework 即完成全部接入；符合条件的 App 进程加载 Framework
 后，Runtime 会自动启动。
 
-当前 Package 版本：`2.0.0`。
+当前 Package 版本：`2.1.0`。
 
 ## 环境要求
 
