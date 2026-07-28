@@ -95,10 +95,13 @@ test("release preparation verifies, commits, and tags without pushing", () => {
     calls.push([command, ...args]);
     const key = [command, ...args].join(" ");
     if (key === "git branch --show-current") {
-      return { stdout: "develop\n", stderr: "", status: 0 };
+      return { stdout: "release/2.0.0\n", stderr: "", status: 0 };
     }
     if (key === "git rev-parse HEAD") {
       return { stdout: "abc123\n", stderr: "", status: 0 };
+    }
+    if (key === "git ls-remote --heads origin refs/heads/release/2.0.0") {
+      return { stdout: "", stderr: "", status: 0 };
     }
     if (key === "git ls-remote --heads origin refs/heads/develop") {
       return { stdout: "abc123\trefs/heads/develop\n", stderr: "", status: 0 };
@@ -137,6 +140,145 @@ test("release preparation verifies, commits, and tags without pushing", () => {
     fixture.cleanup();
   }
 });
+
+test("release preparation rejects a branch with an unexpected name", () => {
+  const fixture = makeVersionFixture();
+  const commandRunner = releaseBranchCommandRunner({
+    branch: "develop",
+    localHead: "abc123",
+    developHead: "abc123"
+  });
+
+  try {
+    assert.throws(
+      () => prepareRelease({
+        projectRoot: fixture.root,
+        version: "2.0.0",
+        commandRunner
+      }),
+      /must run from release\/2\.0\.0/
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("release preparation rejects an out-of-date new release branch", () => {
+  const fixture = makeVersionFixture();
+  const commandRunner = releaseBranchCommandRunner({
+    branch: "release/2.0.0",
+    localHead: "abc123",
+    developHead: "def456"
+  });
+
+  try {
+    assert.throws(
+      () => prepareRelease({
+        projectRoot: fixture.root,
+        version: "2.0.0",
+        commandRunner
+      }),
+      /must start from current origin\/develop/
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("release preparation rejects a diverged published release branch", () => {
+  const fixture = makeVersionFixture();
+  const commandRunner = releaseBranchCommandRunner({
+    branch: "release/2.0.0",
+    localHead: "abc123",
+    releaseHead: "def456",
+    developHead: "abc123"
+  });
+
+  try {
+    assert.throws(
+      () => prepareRelease({
+        projectRoot: fixture.root,
+        version: "2.0.0",
+        commandRunner
+      }),
+      /does not match remote branch origin\/release\/2\.0\.0/
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+test("release preparation resumes a synchronized published release branch", () => {
+  const fixture = makeVersionFixture();
+  const commandRunner = releaseBranchCommandRunner({
+    branch: "release/2.0.0",
+    localHead: "abc123",
+    releaseHead: "abc123",
+    developHead: "def456",
+    changedPaths: fixture.expectedVersionedPaths
+  });
+
+  try {
+    assert.deepEqual(
+      prepareRelease({
+        projectRoot: fixture.root,
+        version: "2.0.0",
+        commandRunner
+      }),
+      {
+        previousVersion: "0.1.3",
+        version: "2.0.0",
+        tag: "2.0.0"
+      }
+    );
+  } finally {
+    fixture.cleanup();
+  }
+});
+
+function releaseBranchCommandRunner({
+  branch,
+  localHead,
+  releaseHead = "",
+  developHead,
+  changedPaths = []
+}) {
+  return (command, args) => {
+    const key = [command, ...args].join(" ");
+    if (key === "git status --porcelain") {
+      return { stdout: "", stderr: "", status: 0 };
+    }
+    if (key === "git branch --show-current") {
+      return { stdout: `${branch}\n`, stderr: "", status: 0 };
+    }
+    if (key === "git rev-parse HEAD") {
+      return { stdout: `${localHead}\n`, stderr: "", status: 0 };
+    }
+    if (key === `git ls-remote --heads origin refs/heads/${branch}`) {
+      const stdout = releaseHead
+        ? `${releaseHead}\trefs/heads/${branch}\n`
+        : "";
+      return { stdout, stderr: "", status: 0 };
+    }
+    if (key === "git ls-remote --heads origin refs/heads/develop") {
+      return {
+        stdout: `${developHead}\trefs/heads/develop\n`,
+        stderr: "",
+        status: 0
+      };
+    }
+    if (key === "git diff HEAD --name-only") {
+      return {
+        stdout: changedPaths.length > 0
+          ? `${changedPaths.join("\n")}\n`
+          : "",
+        stderr: "",
+        status: 0
+      };
+    }
+    return { stdout: "", stderr: "", status: 0 };
+  };
+}
 
 function makeVersionFixture() {
   const root = mkdtempSync(join(tmpdir(), "astrolabe-runtime-version-test-"));

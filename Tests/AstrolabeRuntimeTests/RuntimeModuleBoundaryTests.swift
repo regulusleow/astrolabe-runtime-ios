@@ -21,7 +21,8 @@ final class RuntimeModuleBoundaryTests: XCTestCase {
             "AstrolabeRuntimeCore",
             "AstrolabeRuntimeUIKit",
             "AstrolabeRuntime",
-            "AstrolabeRuntimeObjC"
+            "AstrolabeRuntimeObjC",
+            "AstrolabeRuntimeBootstrap"
         ] {
             XCTAssertTrue(
                 packageManifest.contains("name: \"\(targetName)\""),
@@ -34,7 +35,7 @@ final class RuntimeModuleBoundaryTests: XCTestCase {
                     .appendingPathComponent("Sources/AstrolabeRuntime/RuntimeServer.swift")
                     .path
             ),
-            "RuntimeServer must not remain in the facade target"
+            "RuntimeServer must not remain in the composition target"
         )
         XCTAssertFalse(
             FileManager.default.fileExists(
@@ -42,11 +43,54 @@ final class RuntimeModuleBoundaryTests: XCTestCase {
                     .appendingPathComponent("Sources/AstrolabeRuntime/UIKitHierarchyCollector.swift")
                     .path
             ),
-            "UIKitHierarchyCollector must not remain in the facade target"
+            "UIKitHierarchyCollector must not remain in the composition target"
+        )
+        XCTAssertTrue(
+            packageManifest.contains("type: .dynamic"),
+            "AstrolabeRuntime must be a dynamic library product"
+        )
+        XCTAssertTrue(
+            packageManifest.contains("AstrolabeRuntimeBootstrap"),
+            "The dynamic product must include the bootstrap target"
+        )
+        XCTAssertTrue(
+            packageManifest.contains(
+                "name: \"AstrolabeRuntimeBootstrap\",\n"
+                    + "            dependencies: [\"AstrolabeRuntime\"]"
+            ),
+            "The bootstrap target must link the Swift Runtime bridge"
+        )
+
+        let runtimeModuleDirectory = repositoryURL
+            .appendingPathComponent("Sources/AstrolabeRuntime")
+        let runtimeModuleSource = try FileManager.default
+            .contentsOfDirectory(
+                at: runtimeModuleDirectory,
+                includingPropertiesForKeys: nil
+            )
+            .filter { $0.pathExtension == "swift" }
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+        XCTAssertFalse(runtimeModuleSource.contains("@objc(ASTRuntime)"))
+        XCTAssertFalse(runtimeModuleSource.contains("@_spi"))
+        XCTAssertFalse(runtimeModuleSource.contains("public static func start"))
+        XCTAssertFalse(runtimeModuleSource.contains("public static func stop"))
+        XCTAssertFalse(
+            runtimeModuleSource.contains("public static func isRunning")
+        )
+        XCTAssertFalse(
+            runtimeModuleSource.contains(
+                "public typealias RuntimeServerConfiguration"
+            )
+        )
+        XCTAssertFalse(
+            runtimeModuleSource.contains(
+                "public typealias LocalTCPRuntimePortSelection"
+            )
         )
     }
 
-    func testRuntimeFacadeExposesCurrentReleaseVersion() throws {
+    func testRuntimeModuleUsesCurrentReleaseVersion() throws {
         let packageData = try Data(
             contentsOf: repositoryURL.appendingPathComponent("package.json")
         )
@@ -58,7 +102,7 @@ final class RuntimeModuleBoundaryTests: XCTestCase {
         XCTAssertEqual(AstrolabeRuntimeSDK.runtimeVersion, packageVersion)
     }
 
-    func testRuntimeFacadeExposesCurrentProtocolVersion() {
+    func testRuntimeModuleUsesCurrentProtocolVersion() {
         XCTAssertEqual(AstrolabeRuntimeSDK.protocolVersion, .v2)
     }
 

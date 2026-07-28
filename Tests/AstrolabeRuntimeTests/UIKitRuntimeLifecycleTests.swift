@@ -8,15 +8,15 @@
 #if canImport(UIKit)
 @testable import AstrolabeRuntime
 import AstrolabeProtocol
+import AstrolabeRuntimeCore
 import XCTest
 
 @MainActor
 final class UIKitRuntimeLifecycleTests: XCTestCase {
-    #if DEBUG
     func testLifecycleStartsAndStopsDefaultRuntime() async throws {
         let lifecycle = try UIKitRuntimeLifecycle(
             configuration: RuntimeServerConfiguration(
-                runtimeVersion: "0.1.0"
+                runtimeVersion: "2.1.0"
             ),
             inspectionAuthorization: { true }
         )
@@ -35,7 +35,7 @@ final class UIKitRuntimeLifecycleTests: XCTestCase {
     func testLifecycleRejectsUnauthorizedInspection() async throws {
         let lifecycle = try UIKitRuntimeLifecycle(
             configuration: RuntimeServerConfiguration(
-                runtimeVersion: "0.1.0"
+                runtimeVersion: "2.1.0"
             ),
             portSelection: .ephemeral,
             inspectionAuthorization: { false }
@@ -56,7 +56,7 @@ final class UIKitRuntimeLifecycleTests: XCTestCase {
     func testLifecycleRejectsDuplicateStart() async throws {
         let lifecycle = try UIKitRuntimeLifecycle(
             configuration: RuntimeServerConfiguration(
-                runtimeVersion: "0.1.0"
+                runtimeVersion: "2.1.0"
             ),
             portSelection: .ephemeral,
             inspectionAuthorization: { true }
@@ -74,27 +74,18 @@ final class UIKitRuntimeLifecycleTests: XCTestCase {
         }
         await lifecycle.stop()
     }
-    #else
-    func testLifecycleDoesNotStartInRelease() async throws {
-        let lifecycle = try UIKitRuntimeLifecycle(
+
+    func testLifecycleConformsToProcessLifecycle() throws {
+        let lifecycle: any RuntimeProcessLifecycle =
+            try UIKitRuntimeLifecycle(
             configuration: RuntimeServerConfiguration(
-                runtimeVersion: "0.1.0"
+                runtimeVersion: "2.1.0"
             ),
             portSelection: .ephemeral,
             inspectionAuthorization: { true }
         )
 
-        do {
-            _ = try await lifecycle.start()
-            XCTFail("A release build must not start the Runtime")
-        } catch {
-            XCTAssertEqual(
-                error as? UIKitRuntimeLifecycleError,
-                .unavailableInCurrentBuild
-            )
-        }
-        XCTAssertEqual(lifecycle.state, .stopped)
+        XCTAssertNotNil(lifecycle)
     }
-    #endif
 }
 #endif

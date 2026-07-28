@@ -28,7 +28,7 @@ export function prepareRelease({
   commandRunner = makeCommandRunner(projectRoot)
 }) {
   assertReleaseVersion(version);
-  requireCleanSynchronizedBranch(commandRunner);
+  requireCleanSynchronizedBranch(commandRunner, version);
   requireUnpublishedTag(commandRunner, version);
 
   const previousVersion = canonicalRepositoryVersion(projectRoot);
@@ -59,7 +59,7 @@ export function prepareRelease({
   return { previousVersion, version, tag: version };
 }
 
-function requireCleanSynchronizedBranch(commandRunner) {
+function requireCleanSynchronizedBranch(commandRunner, version) {
   if (runRequired(commandRunner, "git", ["status", "--porcelain"]).stdout.trim()) {
     throw new Error("Working tree is not clean; commit or remove existing changes first");
   }
@@ -67,16 +67,36 @@ function requireCleanSynchronizedBranch(commandRunner) {
   if (!branch) {
     throw new Error("Cannot prepare a release from a detached HEAD");
   }
+  const expectedBranch = `release/${version}`;
+  if (branch !== expectedBranch) {
+    throw new Error(`Release preparation must run from ${expectedBranch}`);
+  }
+
   const localHead = runRequired(commandRunner, "git", ["rev-parse", "HEAD"]).stdout.trim();
+  const releaseHead = remoteBranchHead(commandRunner, branch);
+  if (releaseHead) {
+    if (localHead !== releaseHead) {
+      throw new Error(`Current HEAD does not match remote branch origin/${branch}`);
+    }
+    return;
+  }
+
+  const developHead = remoteBranchHead(commandRunner, "develop");
+  if (!developHead) {
+    throw new Error("Remote base branch origin/develop was not found");
+  }
+  if (localHead !== developHead) {
+    throw new Error("A new release branch must start from current origin/develop");
+  }
+}
+
+function remoteBranchHead(commandRunner, branch) {
   const remoteLine = runRequired(
     commandRunner,
     "git",
     ["ls-remote", "--heads", "origin", `refs/heads/${branch}`]
   ).stdout.trim();
-  const remoteHead = remoteLine.split(/\s+/)[0] ?? "";
-  if (!remoteHead || localHead !== remoteHead) {
-    throw new Error(`Current HEAD does not match remote branch origin/${branch}`);
-  }
+  return remoteLine.split(/\s+/)[0] ?? "";
 }
 
 function requireUnpublishedTag(commandRunner, version) {

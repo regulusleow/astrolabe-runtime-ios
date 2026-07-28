@@ -3,9 +3,10 @@
 [English](README.md) | 简体中文
 
 Astrolabe Runtime for iOS 在开发期间向 Astrolabe Host 暴露 UIKit 和 Core Animation
-检查数据。Release 构建不会编译 Runtime 激活逻辑。
+检查数据。链接 dynamic Framework 即完成全部接入；符合条件的 App 进程加载 Framework
+后，Runtime 会自动启动。
 
-当前 Package 版本：`2.0.0`。
+当前 Package 版本：`2.1.0`。
 
 ## 环境要求
 
@@ -21,48 +22,19 @@ Astrolabe Runtime for iOS 在开发期间向 Astrolabe Host 暴露 UIKit 和 Cor
 https://github.com/regulusleow/astrolabe-runtime-ios
 ```
 
-将 `AstrolabeRuntime` Product 链接到 App Target。
+只在允许暴露运行时检查数据的 App Target 中链接并嵌入 `AstrolabeRuntime` Product，例如
+Debug 和内部 Beta Target。从旧静态 Product 升级的既有工程需要确认 Framework 已配置为
+`Embed & Sign`。
 
 ## 接入
 
-在当前 Scene 生命周期中启动和停止 Runtime。
+不需要添加任何业务代码。无需导入 Runtime module，也无需在 `AppDelegate` 或
+`SceneDelegate` 中调用生命周期 API。dynamic Framework 加载后会安装进程级生命周期观察者，
+在 App 启动后开启 Runtime，并在前后台切换期间保持同一个 Runtime 实例。
 
-Objective-C：
-
-```objc
-@import AstrolabeRuntime;
-
-- (void)sceneDidBecomeActive:(UIScene *)scene {
-#if DEBUG
-    [ASTRuntime start];
-#endif
-}
-
-- (void)sceneDidEnterBackground:(UIScene *)scene {
-#if DEBUG
-    [ASTRuntime stop];
-#endif
-}
-```
-
-Swift：
-
-```swift
-func sceneDidBecomeActive(_ scene: UIScene) {
-#if DEBUG
-    ASTRuntime.start()
-#endif
-}
-
-func sceneDidEnterBackground(_ scene: UIScene) {
-#if DEBUG
-    ASTRuntime.stop()
-#endif
-}
-```
-
-Objective-C 代码需要处理启动失败时，可以使用 `startWithCompletion:`。需要自定义端口、请求限制或
-检查授权时，可以使用 `UIKitRuntimeLifecycle`。
+Runtime 不判断 `DEBUG`，也不识别业务工程的构建配置名称。只要链接并嵌入该 Product，任何构建配置
+都会启用 Runtime。因此 Release 和 App Store Target 必须从依赖图和最终 App Bundle 中彻底移除
+`AstrolabeRuntime`，并将最终制品扫描作为发布门禁。
 
 ## 能力
 
@@ -81,10 +53,11 @@ Runtime 停止或 App 进程退出时失效。
 
 | Target | 职责 |
 | --- | --- |
-| `AstrolabeRuntimeCore` | iOS SDK 使用的协议服务、路由、Session、Transport、节点注册表和平台无关补丁协调。 |
-| `AstrolabeRuntimeUIKit` | UIKit 和 Core Animation 采集、属性映射、Auto Layout、无障碍信息及白名单内的修改操作。 |
-| `AstrolabeRuntime` | 公共 `ASTRuntime` 外观接口、SDK 元数据、生命周期和依赖组装。 |
-| `AstrolabeRuntimeObjC` | 最小化的 Objective-C Runtime 元数据适配器。 |
+| `AstrolabeRuntimeCore` | 协议服务、路由、Session、Transport、节点注册表和平台无关补丁协调。 |
+| `AstrolabeRuntimeUIKit` | UIKit 和 Core Animation 采集、属性、布局、无障碍信息及白名单内的修改操作。 |
+| `AstrolabeRuntime` | 自动安装器、进程生命周期协调、SDK 元数据和依赖组装。 |
+| `AstrolabeRuntimeBootstrap` | 不暴露公共生命周期 API 的 Objective-C dynamic Framework 加载入口。 |
+| `AstrolabeRuntimeObjC` | UIKit 采集使用的 Objective-C Runtime 元数据适配器。 |
 
 该 Package 实现 `astrolabe-protocol` 定义的平台无关 Wire Protocol。iOS 特有的数据采集、映射、
 生命周期和端口选择保留在本仓库中。
@@ -98,6 +71,7 @@ npm ci
 npm test
 swift test --parallel
 swift build -c release --product AstrolabeRuntime
+scripts/verify-auto-start-artifact.sh
 ```
 
 在 iOS 模拟器中运行 UIKit 和集成测试：
@@ -111,8 +85,9 @@ xcodebuild \
 
 ## 安全性
 
-Runtime 仅监听 Loopback TCP Endpoint，并且在 Release 构建中不可用。USB Transport 同样依赖
-usbmux 强制执行的主机与设备配对机制。请勿分发包含敏感运行时数据的 Debug 构建。
+Runtime 仅监听 Loopback TCP Endpoint。USB Transport 同样依赖 usbmux 强制执行的主机与设备
+配对机制。Runtime 内部没有构建配置门禁；如果 Framework 进入 Release 构建，它也会自动启动。
+请勿分发包含 Runtime 或敏感运行时数据的构建。
 
 临时修改仅限 Runtime 自身维护的补丁能力清单中声明的属性。Runtime 不会暴露任意 Selector、方法调用或业务操作。
 

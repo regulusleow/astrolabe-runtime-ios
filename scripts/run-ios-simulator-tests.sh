@@ -2,6 +2,28 @@
 
 set -euo pipefail
 
+project_root="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")/.."
+  pwd
+)"
+configuration="${ASTROLABE_TEST_CONFIGURATION:-Debug}"
+case "$configuration" in
+  Debug|Release)
+    ;;
+  *)
+    printf 'Unsupported test configuration: %s\n' "$configuration" >&2
+    exit 1
+    ;;
+esac
+
+test_arguments=(
+  -scheme astrolabe-runtime-ios
+  -configuration "$configuration"
+)
+if [[ "$configuration" == "Release" ]]; then
+  test_arguments+=(ENABLE_TESTABILITY=YES)
+fi
+
 select_runtime() {
   xcrun simctl list runtimes --json | python3 -c '
 import json
@@ -76,7 +98,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-xcodebuild \
-  -scheme astrolabe-runtime-ios \
-  -destination "platform=iOS Simulator,id=${device_udid}" \
+test_arguments+=(
+  -destination "platform=iOS Simulator,id=${device_udid}"
+  "$@"
   test
+)
+xcodebuild "${test_arguments[@]}"
+ASTROLABE_ARTIFACT_CONFIGURATION="$configuration" \
+  "$project_root/scripts/verify-auto-start-artifact.sh"

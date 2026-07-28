@@ -45,7 +45,7 @@ jobs:
         run: swift build -c release --product AstrolabeRuntime
 
   ios-simulator:
-    name: iOS Simulator tests
+    name: iOS Simulator and framework tests
     runs-on: macos-15
     timeout-minutes: 30
 
@@ -56,5 +56,10 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: Run iOS Simulator tests
+      - name: Run iOS Simulator and framework tests
         run: scripts/run-ios-simulator-tests.sh
+
+      - name: Verify Release automatic runtime framework
+        run: |
+          ASTROLABE_ARTIFACT_CONFIGURATION=Release \
+            scripts/verify-auto-start-artifact.sh
