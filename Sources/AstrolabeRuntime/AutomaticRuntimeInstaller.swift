@@ -51,7 +51,7 @@ package final class AutomaticRuntimeInstaller {
             },
             failureReporter: { error in
                 logger.error(
-                    "Astrolabe Runtime 启动失败：\(error.localizedDescription, privacy: .public)"
+                    "Astrolabe Runtime startup failed: \(error.localizedDescription, privacy: .public)"
                 )
             }
         )
