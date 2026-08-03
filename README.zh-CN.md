@@ -12,7 +12,8 @@ Astrolabe Runtime for iOS 在开发期间向 Astrolabe Host 暴露 UIKit 和 Cor
 
 - iOS 15 或更高版本
 - 支持 Swift 5.9 或更高版本的 Xcode
-- Astrolabe Host 工具
+- 已安装 [Astrolabe Host](https://github.com/regulusleow/astrolabe/blob/main/README.zh-CN.md#安装)，
+  并为受支持的 AI 客户端完成配置
 
 ## 安装
 

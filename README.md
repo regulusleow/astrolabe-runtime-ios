@@ -13,7 +13,8 @@ Current package release: `2.1.0`.
 
 - iOS 15 or later
 - Xcode with Swift 5.9 or later
-- Astrolabe Host tools
+- [Astrolabe Host](https://github.com/regulusleow/astrolabe#installation)
+  installed and configured for a supported AI client
 
 ## Installation
 
