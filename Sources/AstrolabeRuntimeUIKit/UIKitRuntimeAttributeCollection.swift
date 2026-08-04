@@ -87,6 +87,7 @@ final class UIKitRuntimeAttributeCollectorRegistry {
             UIKitLayoutAttributeCollector(),
             UIKitViewAttributeCollector(),
             UIKitLayerAttributeCollector(),
+            UIKitGradientLayerAttributeCollector(),
             UIKitAccessibilityAttributeCollector(),
             UIKitLabelAttributeCollector(),
             UIKitImageViewAttributeCollector(),

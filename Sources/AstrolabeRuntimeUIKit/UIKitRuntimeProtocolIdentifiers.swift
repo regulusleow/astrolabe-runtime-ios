@@ -8,10 +8,17 @@
 #if canImport(UIKit)
 import AstrolabeProtocol
 
+extension RuntimeNamespacedIdentifier {
+    static let iosViewBackingLayerRelation = iosNamespacedIdentifier(
+        "view.backingLayer"
+    )
+}
+
 extension RuntimeAttributeCategory {
     static let layout = iosCategory("layout")
     static let view = iosCategory("view")
     static let layer = iosCategory("layer")
+    static let gradientLayer = iosCategory("gradientLayer")
     static let accessibility = iosCategory("accessibility")
     static let control = iosCategory("control")
     static let label = iosCategory("label")
@@ -55,6 +62,11 @@ extension RuntimeAttributeIdentifier {
     static let layerBackgroundColor = iosAttribute("layer.backgroundColor")
     static let borderColor = iosAttribute("layer.borderColor")
     static let shadowColor = iosAttribute("layer.shadowColor")
+    static let gradientLayerColors = iosAttribute("gradientLayer.colors")
+    static let gradientLayerLocations = iosAttribute("gradientLayer.locations")
+    static let gradientLayerStartPoint = iosAttribute("gradientLayer.startPoint")
+    static let gradientLayerEndPoint = iosAttribute("gradientLayer.endPoint")
+    static let gradientLayerType = iosAttribute("gradientLayer.type")
     static let accessibilityElement = iosAttribute("accessibility.element")
     static let accessibilityIdentifier = iosAttribute("accessibility.identifier")
     static let accessibilityLabel = iosAttribute("accessibility.label")
@@ -140,6 +152,16 @@ private func iosAttribute(_ path: String) -> RuntimeAttributeIdentifier {
         return try RuntimeAttributeIdentifier(rawValue: "ios.\(path)")
     } catch {
         preconditionFailure("Invalid built-in iOS attribute identifier: \(path)")
+    }
+}
+
+private func iosNamespacedIdentifier(
+    _ path: String
+) -> RuntimeNamespacedIdentifier {
+    do {
+        return try RuntimeNamespacedIdentifier(rawValue: "ios.\(path)")
+    } catch {
+        preconditionFailure("Invalid built-in iOS identifier: \(path)")
     }
 }
 

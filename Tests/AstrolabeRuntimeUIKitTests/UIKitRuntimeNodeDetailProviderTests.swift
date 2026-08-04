@@ -198,6 +198,90 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
         }
     }
 
+    func testProviderCollectsGradientLayerAttributes() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAGradientLayer()
+        let colorSpace = try XCTUnwrap(
+            CGColorSpace(name: CGColorSpace.sRGB)
+        )
+        layer.colors = [
+            try XCTUnwrap(
+                CGColor(
+                    colorSpace: colorSpace,
+                    components: [1, 0, 0, 1]
+                )
+            ),
+            try XCTUnwrap(
+                CGColor(
+                    colorSpace: colorSpace,
+                    components: [0, 0, 1, 0.5]
+                )
+            )
+        ]
+        layer.locations = [0.25, 0.75]
+        layer.startPoint = CGPoint(x: 0.1, y: 0.2)
+        layer.endPoint = CGPoint(x: 0.8, y: 0.9)
+        layer.type = .radial
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertEqual(
+            detail.sections.map(\.category),
+            [.layout, .layer, .gradientLayer]
+        )
+        XCTAssertEqual(
+            value(.gradientLayerColors, in: detail),
+            .array([
+                .object([
+                    "colorSpace": .string("srgb"),
+                    "red": .number(1),
+                    "green": .number(0),
+                    "blue": .number(0),
+                    "alpha": .number(1)
+                ]),
+                .object([
+                    "colorSpace": .string("srgb"),
+                    "red": .number(0),
+                    "green": .number(0),
+                    "blue": .number(1),
+                    "alpha": .number(0.5)
+                ])
+            ])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerLocations, in: detail),
+            .array([.number(0.25), .number(0.75)])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerStartPoint, in: detail),
+            .object(["x": .number(0.1), "y": .number(0.2)])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerEndPoint, in: detail),
+            .object(["x": .number(0.8), "y": .number(0.9)])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerType, in: detail),
+            .string("radial")
+        )
+    }
+
+    func testProviderDoesNotInferGradientLocations() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAGradientLayer()
+        layer.locations = nil
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertNil(value(.gradientLayerLocations, in: detail))
+    }
+
     func testProviderOmitsUndefinedIntrinsicContentSize() async throws {
         let registry = RuntimeNodeRegistry()
         let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)

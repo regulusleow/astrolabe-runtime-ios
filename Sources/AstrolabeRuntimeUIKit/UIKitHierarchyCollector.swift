@@ -20,6 +20,7 @@ final class UIKitHierarchyCollector {
     private let colorMapper: UIKitRuntimeColorMapper
     private let accessibilityMapper: UIKitRuntimeAccessibilityMapper
     private let attributeCollectorRegistry: UIKitRuntimeAttributeCollectorRegistry
+    private let relationProviderRegistry: UIKitRuntimeNodeRelationProviderRegistry
 
     init(
         nodeRegistry: RuntimeNodeRegistry,
@@ -27,7 +28,8 @@ final class UIKitHierarchyCollector {
         screenMapper: UIKitRuntimeScreenMapper,
         colorMapper: UIKitRuntimeColorMapper,
         accessibilityMapper: UIKitRuntimeAccessibilityMapper,
-        attributeCollectorRegistry: UIKitRuntimeAttributeCollectorRegistry
+        attributeCollectorRegistry: UIKitRuntimeAttributeCollectorRegistry,
+        relationProviderRegistry: UIKitRuntimeNodeRelationProviderRegistry = .init()
     ) {
         self.nodeRegistry = nodeRegistry
         self.targetIdentifier = targetIdentifier
@@ -35,6 +37,7 @@ final class UIKitHierarchyCollector {
         self.colorMapper = colorMapper
         self.accessibilityMapper = accessibilityMapper
         self.attributeCollectorRegistry = attributeCollectorRegistry
+        self.relationProviderRegistry = relationProviderRegistry
     }
 
     func capture(
@@ -82,6 +85,10 @@ final class UIKitHierarchyCollector {
                 ancestorVisibleRect: screen.coordinateSpace.bounds
             )
         })
+        let relationContext = UIKitRuntimeNodeRelationCollectionContext(
+            windows: windows,
+            nodeIDsByObjectIdentity: capturedNodeIDs(in: roots)
+        )
 
         return RuntimeHierarchySnapshotPayload(
             snapshotID: try RuntimeOpaqueIdentifier(
@@ -96,8 +103,41 @@ final class UIKitHierarchyCollector {
                 space: .screen
             ),
             roots: roots,
+            relations: try relationProviderRegistry.relations(
+                in: relationContext
+            ),
             extensions: nil
         )
+    }
+
+    private func capturedNodeIDs(
+        in roots: [RuntimeNode]
+    ) -> [ObjectIdentifier: RuntimeOpaqueIdentifier] {
+        var nodeIDsByObjectIdentity =
+            [ObjectIdentifier: RuntimeOpaqueIdentifier]()
+        for root in roots {
+            collectCapturedNodeIDs(
+                from: root,
+                into: &nodeIDsByObjectIdentity
+            )
+        }
+        return nodeIDsByObjectIdentity
+    }
+
+    private func collectCapturedNodeIDs(
+        from node: RuntimeNode,
+        into nodeIDsByObjectIdentity:
+            inout [ObjectIdentifier: RuntimeOpaqueIdentifier]
+    ) {
+        if let object = nodeRegistry.object(for: node.nodeID) {
+            nodeIDsByObjectIdentity[ObjectIdentifier(object)] = node.nodeID
+        }
+        for child in node.children {
+            collectCapturedNodeIDs(
+                from: child,
+                into: &nodeIDsByObjectIdentity
+            )
+        }
     }
 
     private func viewNode(
