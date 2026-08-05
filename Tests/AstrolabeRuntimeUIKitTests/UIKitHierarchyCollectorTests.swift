@@ -16,6 +16,129 @@ import XCTest
 
 @MainActor
 final class UIKitHierarchyCollectorTests: XCTestCase {
+    func testCollectorCapturesDetachedMaskAndEmitsLayerMaskRelation() throws {
+        let registry = RuntimeNodeRegistry()
+        let collector = makeCollector(nodeRegistry: registry)
+        let window = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 320, height: 640)
+        )
+        let maskedView = UIView(
+            frame: CGRect(x: 20, y: 40, width: 120, height: 80)
+        )
+        let mask = CAShapeLayer()
+        mask.frame = maskedView.bounds
+        maskedView.layer.mask = mask
+        window.addSubview(maskedView)
+
+        let snapshot = try collector.capture(
+            windows: [window],
+            screen: window.screen,
+            interfaceOrientation: "portrait",
+            capturedAtUnixTime: 100
+        )
+        let maskNodeID = registry.nodeID(for: mask)
+        let maskNode = try XCTUnwrap(
+            snapshot.roots.first { $0.nodeID == maskNodeID }
+        )
+        let ownerNode = try XCTUnwrap(
+            flattenedNodes(snapshot.roots[1]).first {
+                $0.nodeID == registry.nodeID(for: maskedView.layer)
+            }
+        )
+        let relations = try XCTUnwrap(snapshot.relations)
+
+        XCTAssertEqual(maskNode.runtimeType.name, "CAShapeLayer")
+        XCTAssertNil(maskNode.parentID)
+        XCTAssertFalse(ownerNode.children.contains { $0.nodeID == maskNodeID })
+        XCTAssertTrue(relations.contains {
+            $0.type.rawValue == "ios.layer.mask" &&
+                $0.sourceNodeID == ownerNode.nodeID &&
+                $0.targetNodeID == maskNodeID
+        })
+    }
+
+    func testCollectorCapturesDetachedMaskLayerSubtreeWithOwnerGeometry() throws {
+        let registry = RuntimeNodeRegistry()
+        let collector = makeCollector(nodeRegistry: registry)
+        let window = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 320, height: 640)
+        )
+        let maskedView = UIView(
+            frame: CGRect(x: 20, y: 40, width: 120, height: 80)
+        )
+        let mask = CALayer()
+        mask.frame = CGRect(x: 10, y: 12, width: 60, height: 40)
+        let maskSublayer = CALayer()
+        maskSublayer.frame = CGRect(x: 5, y: 7, width: 20, height: 10)
+        mask.addSublayer(maskSublayer)
+        maskedView.layer.mask = mask
+        window.addSubview(maskedView)
+
+        let snapshot = try collector.capture(
+            windows: [window],
+            screen: window.screen,
+            interfaceOrientation: "portrait",
+            capturedAtUnixTime: 100
+        )
+        let maskNode = try XCTUnwrap(
+            snapshot.roots.first {
+                $0.nodeID == registry.nodeID(for: mask)
+            }
+        )
+        let maskSublayerNode = try XCTUnwrap(maskNode.children.first)
+
+        XCTAssertEqual(maskNode.runtimeType.name, "CALayer")
+        XCTAssertEqual(maskNode.geometry.frameInScreen.x, 30, accuracy: 0.001)
+        XCTAssertEqual(maskNode.geometry.frameInScreen.y, 52, accuracy: 0.001)
+        XCTAssertEqual(maskSublayerNode.parentID, maskNode.nodeID)
+        XCTAssertEqual(
+            maskSublayerNode.nodeID,
+            registry.nodeID(for: maskSublayer)
+        )
+        XCTAssertEqual(
+            maskSublayerNode.geometry.frameInScreen.x,
+            35,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            maskSublayerNode.geometry.frameInScreen.y,
+            59,
+            accuracy: 0.001
+        )
+    }
+
+    func testCollectorCapturesDetachedMaskWithoutRelationProviders() throws {
+        let registry = RuntimeNodeRegistry()
+        let collector = makeCollector(
+            nodeRegistry: registry,
+            relationProviderRegistry: UIKitRuntimeNodeRelationProviderRegistry(
+                providers: []
+            )
+        )
+        let window = UIWindow(
+            frame: CGRect(x: 0, y: 0, width: 320, height: 640)
+        )
+        let maskedView = UIView(
+            frame: CGRect(x: 20, y: 40, width: 120, height: 80)
+        )
+        let mask = CALayer()
+        mask.frame = maskedView.bounds
+        maskedView.layer.mask = mask
+        window.addSubview(maskedView)
+
+        let snapshot = try collector.capture(
+            windows: [window],
+            screen: window.screen,
+            interfaceOrientation: "portrait",
+            capturedAtUnixTime: 100
+        )
+
+        XCTAssertTrue(snapshot.roots.contains {
+            $0.nodeID == registry.nodeID(for: mask)
+        })
+        XCTAssertEqual(snapshot.relations, [])
+    }
+
     func testCollectorEmitsViewBackingLayerRelationsForCapturedNodes() throws {
         let registry = RuntimeNodeRegistry()
         let collector = makeCollector(nodeRegistry: registry)

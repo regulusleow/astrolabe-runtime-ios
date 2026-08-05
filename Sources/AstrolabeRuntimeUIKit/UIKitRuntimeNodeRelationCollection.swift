@@ -20,16 +20,21 @@ struct UIKitRuntimeNodeRelationCollectionContext {
     /// Windows in hierarchy-capture order.
     let windows: [UIWindow]
 
+    /// Layers in authoritative hierarchy-capture order.
+    let layers: [CALayer]
+
     /// Captured node identifiers keyed by runtime object identity.
     private let nodeIDsByObjectIdentity:
         [ObjectIdentifier: RuntimeOpaqueIdentifier]
 
     init(
         windows: [UIWindow],
+        layers: [CALayer],
         nodeIDsByObjectIdentity:
             [ObjectIdentifier: RuntimeOpaqueIdentifier]
     ) {
         self.windows = windows
+        self.layers = layers
         self.nodeIDsByObjectIdentity = nodeIDsByObjectIdentity
     }
 
@@ -44,7 +49,8 @@ struct UIKitRuntimeNodeRelationProviderRegistry {
 
     init(
         providers: [any UIKitRuntimeNodeRelationProviding] = [
-            UIKitViewBackingLayerRelationProvider()
+            UIKitViewBackingLayerRelationProvider(),
+            UIKitLayerMaskRelationProvider()
         ]
     ) {
         self.providers = providers
@@ -56,6 +62,30 @@ struct UIKitRuntimeNodeRelationProviderRegistry {
     ) throws -> [RuntimeNodeRelation] {
         try providers.flatMap { provider in
             try provider.relations(in: context)
+        }
+    }
+}
+
+private struct UIKitLayerMaskRelationProvider:
+    UIKitRuntimeNodeRelationProviding
+{
+    @MainActor
+    func relations(
+        in context: UIKitRuntimeNodeRelationCollectionContext
+    ) throws -> [RuntimeNodeRelation] {
+        try context.layers.compactMap { layer in
+            guard let mask = layer.mask,
+                  let layerNodeID = context.nodeID(for: layer),
+                  let maskNodeID = context.nodeID(for: mask)
+            else {
+                return nil
+            }
+            return RuntimeNodeRelation(
+                type: .iosLayerMaskRelation,
+                sourceNodeID: layerNodeID,
+                targetNodeID: maskNodeID,
+                extensions: try RuntimeExtensionMap()
+            )
         }
     }
 }

@@ -9,6 +9,10 @@
 import AstrolabeProtocol
 
 extension RuntimeNamespacedIdentifier {
+    static let iosLayerMaskRelation = iosNamespacedIdentifier(
+        "layer.mask"
+    )
+
     static let iosViewBackingLayerRelation = iosNamespacedIdentifier(
         "view.backingLayer"
     )
