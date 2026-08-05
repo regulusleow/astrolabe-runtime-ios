@@ -269,6 +269,171 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
         )
     }
 
+    func testProviderCollectsShapeLayerPathSemantics() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 1, y: 2))
+        path.addLine(to: CGPoint(x: 11, y: 2))
+        path.addQuadCurve(
+            to: CGPoint(x: 21, y: 12),
+            control: CGPoint(x: 16, y: 2)
+        )
+        path.addCurve(
+            to: CGPoint(x: 1, y: 22),
+            control1: CGPoint(x: 21, y: 17),
+            control2: CGPoint(x: 11, y: 22)
+        )
+        path.closeSubpath()
+        layer.path = path
+        layer.fillRule = .evenOdd
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertEqual(
+            detail.sections.map(\.category),
+            [.layout, .layer, .shapeLayer]
+        )
+        XCTAssertEqual(
+            value(.shapeLayerFillRule, in: detail),
+            .string("even-odd")
+        )
+        let pathValue = try XCTUnwrap(
+            value(.shapeLayerPath, in: detail)?.objectValue
+        )
+        XCTAssertEqual(pathValue["coordinateSpace"], .string("local"))
+        XCTAssertEqual(pathValue["elementCount"], .integer(5))
+        XCTAssertEqual(pathValue["returnedElementCount"], .integer(5))
+        XCTAssertEqual(pathValue["truncated"], .boolean(false))
+        XCTAssertEqual(
+            pathValue["boundingBox"],
+            .object([
+                "x": .number(1),
+                "y": .number(2),
+                "width": .number(20),
+                "height": .number(20)
+            ])
+        )
+        let elements = try XCTUnwrap(pathValue["elements"]?.arrayValue)
+        XCTAssertEqual(elements.count, 5)
+        XCTAssertEqual(
+            elements.compactMap(\.objectValue).compactMap { $0["type"] },
+            [
+                .string("moveTo"),
+                .string("lineTo"),
+                .string("quadCurveTo"),
+                .string("curveTo"),
+                .string("closeSubpath")
+            ]
+        )
+        XCTAssertEqual(
+            elements[2].objectValue?["controlPoint"]?.objectValue?["x"],
+            .number(16)
+        )
+        XCTAssertEqual(
+            elements[3].objectValue?["controlPoint2"]?.objectValue?["y"],
+            .number(22)
+        )
+    }
+
+    func testProviderOmitsNilShapePathButKeepsFillRule() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertNil(value(.shapeLayerPath, in: detail))
+        XCTAssertEqual(
+            value(.shapeLayerFillRule, in: detail),
+            .string("non-zero")
+        )
+    }
+
+    func testProviderReturnsEmptyShapePathWithoutBoundingBox() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+        layer.path = CGMutablePath()
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        let pathValue = try XCTUnwrap(
+            value(.shapeLayerPath, in: detail)?.objectValue
+        )
+        XCTAssertEqual(pathValue["elementCount"], .integer(0))
+        XCTAssertEqual(pathValue["returnedElementCount"], .integer(0))
+        XCTAssertEqual(pathValue["truncated"], .boolean(false))
+        XCTAssertEqual(pathValue["elements"], .array([]))
+        XCTAssertNil(pathValue["boundingBox"])
+    }
+
+    func testProviderKeepsDegenerateShapePathBoundingBox() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 1, y: 2))
+        path.addLine(to: CGPoint(x: 11, y: 2))
+        layer.path = path
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        let pathValue = try XCTUnwrap(
+            value(.shapeLayerPath, in: detail)?.objectValue
+        )
+        XCTAssertEqual(
+            pathValue["boundingBox"],
+            .object([
+                "x": .number(1),
+                "y": .number(2),
+                "width": .number(10),
+                "height": .number(0)
+            ])
+        )
+    }
+
+    func testShapePathProjectorReportsTruncation() {
+        let path = CGMutablePath()
+        path.move(to: .zero)
+        for index in 1 ... 300 {
+            path.addLine(to: CGPoint(x: CGFloat(index), y: 0))
+        }
+
+        guard case let .object(value)? = UIKitShapePathProjector().value(
+            for: path
+        ) else {
+            return XCTFail("Expected a bounded Shape Layer path.")
+        }
+        XCTAssertEqual(value["elementCount"], .integer(301))
+        XCTAssertEqual(value["returnedElementCount"], .integer(256))
+        XCTAssertEqual(value["truncated"], .boolean(true))
+    }
+
+    func testShapePathProjectorRejectsNonFinitePoint() {
+        let projector = UIKitShapePathProjector()
+
+        XCTAssertNil(
+            projector.pointValueIfFinite(
+                CGPoint(x: CGFloat.nan, y: 0)
+            )
+        )
+        XCTAssertNil(
+            projector.pointValueIfFinite(
+                CGPoint(x: 0, y: CGFloat.infinity)
+            )
+        )
+    }
+
     func testProviderDoesNotInferGradientLocations() async throws {
         let registry = RuntimeNodeRegistry()
         let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
@@ -413,7 +578,23 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
     }
 }
 
+private extension RuntimeAttributeValue {
+    var objectValue: [String: RuntimeJSONValue]? {
+        guard case let .object(value) = self else {
+            return nil
+        }
+        return value
+    }
+}
+
 private extension RuntimeJSONValue {
+    var arrayValue: [RuntimeJSONValue]? {
+        guard case let .array(value) = self else {
+            return nil
+        }
+        return value
+    }
+
     var objectValue: [String: RuntimeJSONValue]? {
         guard case let .object(value) = self else {
             return nil
