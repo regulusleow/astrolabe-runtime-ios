@@ -19,6 +19,7 @@ extension RuntimeNamespacedIdentifier {
 }
 
 extension RuntimeAttributeCategory {
+    static let commonLayout = commonCategory("layout")
     static let layout = iosCategory("layout")
     static let view = iosCategory("view")
     static let layer = iosCategory("layer")
@@ -36,6 +37,7 @@ extension RuntimeAttributeCategory {
 }
 
 extension RuntimeAttributeIdentifier {
+    static let commonLayoutRelations = commonAttribute("layout.relations")
     static let frameInParent = iosAttribute("layout.frameInParent")
     static let frameInScreen = iosAttribute("layout.frameInScreen")
     static let bounds = iosAttribute("layout.bounds")
@@ -154,11 +156,27 @@ private func iosCategory(_ path: String) -> RuntimeAttributeCategory {
     }
 }
 
+private func commonCategory(_ path: String) -> RuntimeAttributeCategory {
+    do {
+        return try RuntimeAttributeCategory(rawValue: "common.\(path)")
+    } catch {
+        preconditionFailure("Invalid built-in common attribute category: \(path)")
+    }
+}
+
 private func iosAttribute(_ path: String) -> RuntimeAttributeIdentifier {
     do {
         return try RuntimeAttributeIdentifier(rawValue: "ios.\(path)")
     } catch {
         preconditionFailure("Invalid built-in iOS attribute identifier: \(path)")
+    }
+}
+
+private func commonAttribute(_ path: String) -> RuntimeAttributeIdentifier {
+    do {
+        return try RuntimeAttributeIdentifier(rawValue: "common.\(path)")
+    } catch {
+        preconditionFailure("Invalid built-in common attribute identifier: \(path)")
     }
 }
 

@@ -43,7 +43,16 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
 
         XCTAssertEqual(
             detail.sections.map(\.category),
-            [.layout, .view, .layer, .accessibility, .control, .button, .autoLayout]
+            [
+                .layout,
+                .commonLayout,
+                .view,
+                .layer,
+                .accessibility,
+                .control,
+                .button,
+                .autoLayout
+            ]
         )
         XCTAssertEqual(value(.buttonTitle, in: detail), .string("Save"))
         XCTAssertEqual(value(.selected, in: detail), .boolean(true))
@@ -87,6 +96,140 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
         XCTAssertEqual(
             constraint["firstItem"]?.objectValue?["nodeID"],
             .string(nodeID.rawValue)
+        )
+    }
+
+    func testProviderNormalizesConstantAutoLayoutRelation() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        let widthConstraint = view.widthAnchor.constraint(equalToConstant: 120)
+        widthConstraint.identifier = "content.width"
+        widthConstraint.priority = .defaultHigh
+        widthConstraint.isActive = true
+        let nodeID = registry.nodeID(for: view)
+
+        let detail = try await provider.nodeDetail(for: nodeID)
+
+        let identifier = try RuntimeAttributeIdentifier(
+            rawValue: "common.layout.relations"
+        )
+        guard case let .layoutRelations(relations)? = value(
+            identifier,
+            in: detail
+        ) else {
+            return XCTFail("Expected normalized layout relations.")
+        }
+        XCTAssertEqual(
+            relations,
+            [
+                RuntimeLayoutRelation(
+                    identifier: "content.width",
+                    source: RuntimeLayoutAnchor(
+                        nodeID: nodeID,
+                        anchor: "width"
+                    ),
+                    relation: .equal,
+                    target: nil,
+                    multiplier: 1,
+                    offset: RuntimeMeasurement(value: 120, unit: .logical),
+                    strength: 0.75,
+                    active: true,
+                    extensions: try RuntimeExtensionMap(values: [
+                        "ios.uikit.priority": .number(750)
+                    ])
+                )
+            ]
+        )
+    }
+
+    func testProviderNormalizesAutoLayoutRelationBetweenNodes() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let container = UIView()
+        let sourceView = UIView()
+        let targetView = UIView()
+        sourceView.translatesAutoresizingMaskIntoConstraints = false
+        targetView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(sourceView)
+        container.addSubview(targetView)
+        let widthConstraint = NSLayoutConstraint(
+            item: sourceView,
+            attribute: .width,
+            relatedBy: .lessThanOrEqual,
+            toItem: targetView,
+            attribute: .width,
+            multiplier: 0.5,
+            constant: 8
+        )
+        widthConstraint.identifier = "source.width"
+        widthConstraint.isActive = true
+        let sourceNodeID = registry.nodeID(for: sourceView)
+        let targetNodeID = registry.nodeID(for: targetView)
+
+        let detail = try await provider.nodeDetail(for: sourceNodeID)
+
+        guard case let .layoutRelations(relations)? = value(
+            .commonLayoutRelations,
+            in: detail
+        ) else {
+            return XCTFail("Expected normalized layout relations.")
+        }
+        XCTAssertEqual(
+            relations,
+            [
+                RuntimeLayoutRelation(
+                    identifier: "source.width",
+                    source: RuntimeLayoutAnchor(
+                        nodeID: sourceNodeID,
+                        anchor: "width"
+                    ),
+                    relation: .lessThanOrEqual,
+                    target: RuntimeLayoutAnchor(
+                        nodeID: targetNodeID,
+                        anchor: "width"
+                    ),
+                    multiplier: 0.5,
+                    offset: RuntimeMeasurement(value: 8, unit: .logical),
+                    strength: 1,
+                    active: true,
+                    extensions: try RuntimeExtensionMap(values: [
+                        "ios.uikit.priority": .number(1_000)
+                    ])
+                )
+            ]
+        )
+    }
+
+    func testProviderKeepsLayoutGuideConstraintInRawExtension() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let container = UIView()
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(view)
+        let guideConstraint = view.leadingAnchor.constraint(
+            equalTo: container.safeAreaLayoutGuide.leadingAnchor
+        )
+        guideConstraint.identifier = "content.safeAreaLeading"
+        guideConstraint.isActive = true
+        let nodeID = registry.nodeID(for: view)
+
+        let detail = try await provider.nodeDetail(for: nodeID)
+
+        XCTAssertEqual(
+            value(.commonLayoutRelations, in: detail),
+            .layoutRelations([])
+        )
+        guard case let .array(constraints)? = value(.constraints, in: detail) else {
+            return XCTFail("Expected raw Auto Layout extension values.")
+        }
+        XCTAssertTrue(
+            constraints.compactMap(\.objectValue).contains {
+                $0["identifier"] == .string("content.safeAreaLeading") &&
+                    $0["secondItem"]?.objectValue?["kind"] == .string("layoutGuide")
+            }
         )
     }
 
