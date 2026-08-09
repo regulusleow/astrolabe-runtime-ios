@@ -85,8 +85,11 @@ final class UIKitRuntimeAttributeCollectorRegistry {
     private static var defaultCollectors: [any UIKitRuntimeAttributeCollecting] {
         [
             UIKitLayoutAttributeCollector(),
+            UIKitNormalizedLayoutRelationAttributeCollector(),
             UIKitViewAttributeCollector(),
             UIKitLayerAttributeCollector(),
+            UIKitGradientLayerAttributeCollector(),
+            UIKitShapeLayerAttributeCollector(),
             UIKitAccessibilityAttributeCollector(),
             UIKitLabelAttributeCollector(),
             UIKitImageViewAttributeCollector(),

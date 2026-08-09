@@ -8,10 +8,23 @@
 #if canImport(UIKit)
 import AstrolabeProtocol
 
+extension RuntimeNamespacedIdentifier {
+    static let iosLayerMaskRelation = iosNamespacedIdentifier(
+        "layer.mask"
+    )
+
+    static let iosViewBackingLayerRelation = iosNamespacedIdentifier(
+        "view.backingLayer"
+    )
+}
+
 extension RuntimeAttributeCategory {
+    static let commonLayout = commonCategory("layout")
     static let layout = iosCategory("layout")
     static let view = iosCategory("view")
     static let layer = iosCategory("layer")
+    static let gradientLayer = iosCategory("gradientLayer")
+    static let shapeLayer = iosCategory("shapeLayer")
     static let accessibility = iosCategory("accessibility")
     static let control = iosCategory("control")
     static let label = iosCategory("label")
@@ -24,6 +37,7 @@ extension RuntimeAttributeCategory {
 }
 
 extension RuntimeAttributeIdentifier {
+    static let commonLayoutRelations = commonAttribute("layout.relations")
     static let frameInParent = iosAttribute("layout.frameInParent")
     static let frameInScreen = iosAttribute("layout.frameInScreen")
     static let bounds = iosAttribute("layout.bounds")
@@ -55,6 +69,13 @@ extension RuntimeAttributeIdentifier {
     static let layerBackgroundColor = iosAttribute("layer.backgroundColor")
     static let borderColor = iosAttribute("layer.borderColor")
     static let shadowColor = iosAttribute("layer.shadowColor")
+    static let gradientLayerColors = iosAttribute("gradientLayer.colors")
+    static let gradientLayerLocations = iosAttribute("gradientLayer.locations")
+    static let gradientLayerStartPoint = iosAttribute("gradientLayer.startPoint")
+    static let gradientLayerEndPoint = iosAttribute("gradientLayer.endPoint")
+    static let gradientLayerType = iosAttribute("gradientLayer.type")
+    static let shapeLayerPath = iosAttribute("shapeLayer.path")
+    static let shapeLayerFillRule = iosAttribute("shapeLayer.fillRule")
     static let accessibilityElement = iosAttribute("accessibility.element")
     static let accessibilityIdentifier = iosAttribute("accessibility.identifier")
     static let accessibilityLabel = iosAttribute("accessibility.label")
@@ -135,11 +156,37 @@ private func iosCategory(_ path: String) -> RuntimeAttributeCategory {
     }
 }
 
+private func commonCategory(_ path: String) -> RuntimeAttributeCategory {
+    do {
+        return try RuntimeAttributeCategory(rawValue: "common.\(path)")
+    } catch {
+        preconditionFailure("Invalid built-in common attribute category: \(path)")
+    }
+}
+
 private func iosAttribute(_ path: String) -> RuntimeAttributeIdentifier {
     do {
         return try RuntimeAttributeIdentifier(rawValue: "ios.\(path)")
     } catch {
         preconditionFailure("Invalid built-in iOS attribute identifier: \(path)")
+    }
+}
+
+private func commonAttribute(_ path: String) -> RuntimeAttributeIdentifier {
+    do {
+        return try RuntimeAttributeIdentifier(rawValue: "common.\(path)")
+    } catch {
+        preconditionFailure("Invalid built-in common attribute identifier: \(path)")
+    }
+}
+
+private func iosNamespacedIdentifier(
+    _ path: String
+) -> RuntimeNamespacedIdentifier {
+    do {
+        return try RuntimeNamespacedIdentifier(rawValue: "ios.\(path)")
+    } catch {
+        preconditionFailure("Invalid built-in iOS identifier: \(path)")
     }
 }
 

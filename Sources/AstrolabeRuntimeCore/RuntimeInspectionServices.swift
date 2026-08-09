@@ -5,6 +5,8 @@
 //  Created by 轩辕十四 on 2026/7/10.
 //
 
+import AstrolabeProtocol
+
 package struct RuntimeInspectionServices: Sendable {
     /// Provider exposing application, device, and screen metadata.
     package let appInfoProvider: any RuntimeAppInfoProviding
@@ -18,16 +20,21 @@ package struct RuntimeInspectionServices: Sendable {
     /// Optional provider managing Debug-only temporary attribute patches.
     package let attributePatchProvider: (any RuntimeAttributePatchProviding)?
 
+    /// Capabilities describing payload extensions rather than request handlers.
+    package let additionalCapabilities: Set<RuntimeCapability>
+
     package init(
         appInfoProvider: any RuntimeAppInfoProviding,
         hierarchyProvider: any RuntimeHierarchyProviding,
         nodeDetailProvider: any RuntimeNodeDetailProviding,
-        attributePatchProvider: (any RuntimeAttributePatchProviding)? = nil
+        attributePatchProvider: (any RuntimeAttributePatchProviding)? = nil,
+        additionalCapabilities: Set<RuntimeCapability> = []
     ) {
         self.appInfoProvider = appInfoProvider
         self.hierarchyProvider = hierarchyProvider
         self.nodeDetailProvider = nodeDetailProvider
         self.attributePatchProvider = attributePatchProvider
+        self.additionalCapabilities = additionalCapabilities
     }
 }
 

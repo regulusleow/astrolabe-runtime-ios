@@ -228,7 +228,11 @@ package actor RuntimeServer {
                 Feature(capability: .attributePatching, handler: clearPatchesHandler)
             ])
         }
-        let capabilities = Array(Set(features.map(\.capability))).sorted {
+        let capabilities = Array(
+            Set(features.map(\.capability)).union(
+                inspectionServices.additionalCapabilities
+            )
+        ).sorted {
             $0.rawValue < $1.rawValue
         }
         let handshakeHandler = TypedRuntimeRequestHandler<

@@ -86,7 +86,8 @@ astrolabe-runtime-ios
     │   ├── WindowProvider
     │   ├── HierarchyCollector
     │   ├── NodeRegistry
-    │   └── AttributeCollectorRegistry
+    │   ├── AttributeCollectorRegistry
+    │   └── NodeRelationProviderRegistry
     ├── AttributeCollectors
     │   ├── UIViewCollector
     │   ├── CALayerCollector
@@ -96,6 +97,7 @@ astrolabe-runtime-ios
     │   ├── TextInputCollector
     │   ├── UIScrollViewCollector
     │   ├── UIStackViewCollector
+    │   ├── CAGradientLayerCollector
     │   ├── AutoLayoutCollector
     │   └── AccessibilityCollector
     └── ObjectiveCAdapters
@@ -113,6 +115,7 @@ astrolabe-runtime-ios
 | `HierarchyCollector` | Build the recursive node tree |
 | `NodeRegistry` | Map session node IDs to weak runtime objects |
 | `AttributeCollectorRegistry` | Select collectors by runtime object type |
+| `NodeRelationProviderRegistry` | Compose providers that emit verified relations between captured nodes |
 | Attribute collectors | Read one coherent category of typed properties |
 | `AstrolabeProtocol` | Define and encode the platform-neutral wire contract |
 
@@ -333,8 +336,11 @@ to add unrelated inspection features. Its required scope is:
 4. Establish an explicit UIKit-to-Protocol mapper. Platform-neutral semantics
    use Protocol fields; UIKit class names, Auto Layout facts, and iOS-only
    attributes remain Runtime-owned extension facts.
-5. Keep capability advertisement derived from registered request handlers so
-   handshake declarations cannot diverge from executable features.
+5. Keep request-method capabilities derived from registered request handlers.
+   Payload-format capabilities such as `uiGraphRelations` are declared by the
+   inspection-service composition root and unioned into the handshake, so they
+   remain independent from transport routing without becoming hard-coded in the
+   server.
 6. Split macOS Core tests from iOS Simulator UIKit, facade, and Objective-C
    integration tests, then run both before the 2.0 release.
 7. Update the Host iOS provider against Protocol 2.0 and repeat simulator and

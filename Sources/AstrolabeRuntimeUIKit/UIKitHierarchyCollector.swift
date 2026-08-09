@@ -12,6 +12,31 @@ import AstrolabeRuntimeObjC
 import QuartzCore
 import UIKit
 
+private struct UIKitCapturedLayerContext {
+    /// Layer captured from the authoritative window layer hierarchy.
+    let layer: CALayer
+
+    /// Window that owns the authoritative layer hierarchy.
+    let window: UIWindow
+
+    /// Whether the owner or one of its ancestors hides dependent layers.
+    let dependencyHiddenByAncestor: Bool
+
+    /// Effective opacity inherited by dependent layers.
+    let dependencyAncestorAlpha: Double
+
+    /// Visible screen rect inherited by dependent layers.
+    let dependencyAncestorVisibleRect: CGRect
+}
+
+private enum UIKitLayerCaptureMode {
+    /// Capture from the authoritative layer hierarchy.
+    case hierarchy
+
+    /// Capture a detached mask tree using its owner as the coordinate anchor.
+    case detachedMask(owner: CALayer)
+}
+
 @MainActor
 final class UIKitHierarchyCollector {
     private let nodeRegistry: RuntimeNodeRegistry
@@ -20,6 +45,7 @@ final class UIKitHierarchyCollector {
     private let colorMapper: UIKitRuntimeColorMapper
     private let accessibilityMapper: UIKitRuntimeAccessibilityMapper
     private let attributeCollectorRegistry: UIKitRuntimeAttributeCollectorRegistry
+    private let relationProviderRegistry: UIKitRuntimeNodeRelationProviderRegistry
 
     init(
         nodeRegistry: RuntimeNodeRegistry,
@@ -27,7 +53,8 @@ final class UIKitHierarchyCollector {
         screenMapper: UIKitRuntimeScreenMapper,
         colorMapper: UIKitRuntimeColorMapper,
         accessibilityMapper: UIKitRuntimeAccessibilityMapper,
-        attributeCollectorRegistry: UIKitRuntimeAttributeCollectorRegistry
+        attributeCollectorRegistry: UIKitRuntimeAttributeCollectorRegistry,
+        relationProviderRegistry: UIKitRuntimeNodeRelationProviderRegistry = .init()
     ) {
         self.nodeRegistry = nodeRegistry
         self.targetIdentifier = targetIdentifier
@@ -35,6 +62,7 @@ final class UIKitHierarchyCollector {
         self.colorMapper = colorMapper
         self.accessibilityMapper = accessibilityMapper
         self.attributeCollectorRegistry = attributeCollectorRegistry
+        self.relationProviderRegistry = relationProviderRegistry
     }
 
     func capture(
@@ -70,6 +98,7 @@ final class UIKitHierarchyCollector {
             )
         }
         let layerRootOffset = roots.count
+        var capturedLayerContexts = [UIKitCapturedLayerContext]()
         roots.append(contentsOf: try windows.enumerated().map { index, window in
             try layerNode(
                 for: window.layer,
@@ -79,9 +108,21 @@ final class UIKitHierarchyCollector {
                 screen: screen,
                 ancestorHidden: false,
                 ancestorAlpha: 1,
-                ancestorVisibleRect: screen.coordinateSpace.bounds
+                ancestorVisibleRect: screen.coordinateSpace.bounds,
+                captureMode: .hierarchy,
+                capturedLayerContexts: &capturedLayerContexts
             )
         })
+        try appendDetachedMaskRoots(
+            to: &roots,
+            capturedLayerContexts: capturedLayerContexts,
+            screen: screen
+        )
+        let relationContext = UIKitRuntimeNodeRelationCollectionContext(
+            windows: windows,
+            layers: capturedLayerContexts.map(\.layer),
+            nodeIDsByObjectIdentity: capturedNodeIDs(in: roots)
+        )
 
         return RuntimeHierarchySnapshotPayload(
             snapshotID: try RuntimeOpaqueIdentifier(
@@ -96,8 +137,41 @@ final class UIKitHierarchyCollector {
                 space: .screen
             ),
             roots: roots,
+            relations: try relationProviderRegistry.relations(
+                in: relationContext
+            ),
             extensions: nil
         )
+    }
+
+    private func capturedNodeIDs(
+        in roots: [RuntimeNode]
+    ) -> [ObjectIdentifier: RuntimeOpaqueIdentifier] {
+        var nodeIDsByObjectIdentity =
+            [ObjectIdentifier: RuntimeOpaqueIdentifier]()
+        for root in roots {
+            collectCapturedNodeIDs(
+                from: root,
+                into: &nodeIDsByObjectIdentity
+            )
+        }
+        return nodeIDsByObjectIdentity
+    }
+
+    private func collectCapturedNodeIDs(
+        from node: RuntimeNode,
+        into nodeIDsByObjectIdentity:
+            inout [ObjectIdentifier: RuntimeOpaqueIdentifier]
+    ) {
+        if let object = nodeRegistry.object(for: node.nodeID) {
+            nodeIDsByObjectIdentity[ObjectIdentifier(object)] = node.nodeID
+        }
+        for child in node.children {
+            collectCapturedNodeIDs(
+                from: child,
+                into: &nodeIDsByObjectIdentity
+            )
+        }
     }
 
     private func viewNode(
@@ -185,7 +259,9 @@ final class UIKitHierarchyCollector {
         screen: UIScreen,
         ancestorHidden: Bool,
         ancestorAlpha: Double,
-        ancestorVisibleRect: CGRect
+        ancestorVisibleRect: CGRect,
+        captureMode: UIKitLayerCaptureMode,
+        capturedLayerContexts: inout [UIKitCapturedLayerContext]
     ) throws -> RuntimeNode {
         let nodeID = nodeRegistry.nodeID(for: layer)
         let hiddenByAncestor = ancestorHidden
@@ -194,7 +270,8 @@ final class UIKitHierarchyCollector {
             layer,
             isRoot: parentID == nil,
             window: window,
-            screen: screen
+            screen: screen,
+            captureMode: captureMode
         )
         let frameInScreen = cgRect(geometry.frameInScreen)
         let visibleRect = ancestorVisibleRect.intersection(frameInScreen)
@@ -211,6 +288,15 @@ final class UIKitHierarchyCollector {
         let childVisibleRect = layer.masksToBounds ?
             visibleRect :
             ancestorVisibleRect
+        if case .hierarchy = captureMode {
+            capturedLayerContexts.append(UIKitCapturedLayerContext(
+                layer: layer,
+                window: window,
+                dependencyHiddenByAncestor: hiddenByAncestor || layer.isHidden,
+                dependencyAncestorAlpha: effectiveAlpha,
+                dependencyAncestorVisibleRect: visibleRect
+            ))
+        }
         let children = try (layer.sublayers ?? []).enumerated().map {
             index, sublayer in
             try layerNode(
@@ -221,7 +307,9 @@ final class UIKitHierarchyCollector {
                 screen: screen,
                 ancestorHidden: hiddenByAncestor || layer.isHidden,
                 ancestorAlpha: effectiveAlpha,
-                ancestorVisibleRect: childVisibleRect
+                ancestorVisibleRect: childVisibleRect,
+                captureMode: captureMode,
+                capturedLayerContexts: &capturedLayerContexts
             )
         }
 
@@ -282,9 +370,17 @@ final class UIKitHierarchyCollector {
         _ layer: CALayer,
         isRoot: Bool,
         window: UIWindow,
-        screen: UIScreen
+        screen: UIScreen,
+        captureMode: UIKitLayerCaptureMode
     ) -> RuntimeNodeGeometry {
-        let rectInWindow = layer.convert(layer.bounds, to: window.layer)
+        let rectInWindow: CGRect
+        switch captureMode {
+        case .hierarchy:
+            rectInWindow = layer.convert(layer.bounds, to: window.layer)
+        case let .detachedMask(owner):
+            let rectInOwner = layer.convert(layer.bounds, to: owner)
+            rectInWindow = owner.convert(rectInOwner, to: window.layer)
+        }
         let rectInScreen = window.convert(
             rectInWindow,
             to: screen.coordinateSpace
@@ -297,6 +393,46 @@ final class UIKitHierarchyCollector {
             ),
             frameInScreen: coordinateRect(rectInScreen, space: .screen)
         )
+    }
+
+    private func appendDetachedMaskRoots(
+        to roots: inout [RuntimeNode],
+        capturedLayerContexts: [UIKitCapturedLayerContext],
+        screen: UIScreen
+    ) throws {
+        var capturedLayerIdentities = Set(
+            capturedLayerContexts.map { ObjectIdentifier($0.layer) }
+        )
+        var ignoredLayerContexts = [UIKitCapturedLayerContext]()
+        for context in capturedLayerContexts {
+            guard let mask = context.layer.mask,
+                  capturedLayerIdentities.insert(ObjectIdentifier(mask)).inserted
+            else {
+                continue
+            }
+            capturedLayerIdentities.formUnion(layerIdentities(in: mask))
+            roots.append(try layerNode(
+                for: mask,
+                parentID: nil,
+                siblingIndex: roots.count,
+                window: context.window,
+                screen: screen,
+                ancestorHidden: context.dependencyHiddenByAncestor,
+                ancestorAlpha: context.dependencyAncestorAlpha,
+                ancestorVisibleRect: context.dependencyAncestorVisibleRect,
+                captureMode: .detachedMask(owner: context.layer),
+                capturedLayerContexts: &ignoredLayerContexts
+            ))
+        }
+    }
+
+    private func layerIdentities(
+        in root: CALayer
+    ) -> Set<ObjectIdentifier> {
+        (root.sublayers ?? []).reduce(into: [ObjectIdentifier(root)]) {
+            identities, layer in
+            identities.formUnion(layerIdentities(in: layer))
+        }
     }
 
     private func runtimeType(for object: AnyObject) -> RuntimeType {

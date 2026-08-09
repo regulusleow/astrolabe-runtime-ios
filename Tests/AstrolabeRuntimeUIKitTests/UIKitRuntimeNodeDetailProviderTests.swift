@@ -43,7 +43,16 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
 
         XCTAssertEqual(
             detail.sections.map(\.category),
-            [.layout, .view, .layer, .accessibility, .control, .button, .autoLayout]
+            [
+                .layout,
+                .commonLayout,
+                .view,
+                .layer,
+                .accessibility,
+                .control,
+                .button,
+                .autoLayout
+            ]
         )
         XCTAssertEqual(value(.buttonTitle, in: detail), .string("Save"))
         XCTAssertEqual(value(.selected, in: detail), .boolean(true))
@@ -87,6 +96,140 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
         XCTAssertEqual(
             constraint["firstItem"]?.objectValue?["nodeID"],
             .string(nodeID.rawValue)
+        )
+    }
+
+    func testProviderNormalizesConstantAutoLayoutRelation() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        let widthConstraint = view.widthAnchor.constraint(equalToConstant: 120)
+        widthConstraint.identifier = "content.width"
+        widthConstraint.priority = .defaultHigh
+        widthConstraint.isActive = true
+        let nodeID = registry.nodeID(for: view)
+
+        let detail = try await provider.nodeDetail(for: nodeID)
+
+        let identifier = try RuntimeAttributeIdentifier(
+            rawValue: "common.layout.relations"
+        )
+        guard case let .layoutRelations(relations)? = value(
+            identifier,
+            in: detail
+        ) else {
+            return XCTFail("Expected normalized layout relations.")
+        }
+        XCTAssertEqual(
+            relations,
+            [
+                RuntimeLayoutRelation(
+                    identifier: "content.width",
+                    source: RuntimeLayoutAnchor(
+                        nodeID: nodeID,
+                        anchor: "width"
+                    ),
+                    relation: .equal,
+                    target: nil,
+                    multiplier: 1,
+                    offset: RuntimeMeasurement(value: 120, unit: .logical),
+                    strength: 0.75,
+                    active: true,
+                    extensions: try RuntimeExtensionMap(values: [
+                        "ios.uikit.priority": .number(750)
+                    ])
+                )
+            ]
+        )
+    }
+
+    func testProviderNormalizesAutoLayoutRelationBetweenNodes() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let container = UIView()
+        let sourceView = UIView()
+        let targetView = UIView()
+        sourceView.translatesAutoresizingMaskIntoConstraints = false
+        targetView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(sourceView)
+        container.addSubview(targetView)
+        let widthConstraint = NSLayoutConstraint(
+            item: sourceView,
+            attribute: .width,
+            relatedBy: .lessThanOrEqual,
+            toItem: targetView,
+            attribute: .width,
+            multiplier: 0.5,
+            constant: 8
+        )
+        widthConstraint.identifier = "source.width"
+        widthConstraint.isActive = true
+        let sourceNodeID = registry.nodeID(for: sourceView)
+        let targetNodeID = registry.nodeID(for: targetView)
+
+        let detail = try await provider.nodeDetail(for: sourceNodeID)
+
+        guard case let .layoutRelations(relations)? = value(
+            .commonLayoutRelations,
+            in: detail
+        ) else {
+            return XCTFail("Expected normalized layout relations.")
+        }
+        XCTAssertEqual(
+            relations,
+            [
+                RuntimeLayoutRelation(
+                    identifier: "source.width",
+                    source: RuntimeLayoutAnchor(
+                        nodeID: sourceNodeID,
+                        anchor: "width"
+                    ),
+                    relation: .lessThanOrEqual,
+                    target: RuntimeLayoutAnchor(
+                        nodeID: targetNodeID,
+                        anchor: "width"
+                    ),
+                    multiplier: 0.5,
+                    offset: RuntimeMeasurement(value: 8, unit: .logical),
+                    strength: 1,
+                    active: true,
+                    extensions: try RuntimeExtensionMap(values: [
+                        "ios.uikit.priority": .number(1_000)
+                    ])
+                )
+            ]
+        )
+    }
+
+    func testProviderKeepsLayoutGuideConstraintInRawExtension() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let container = UIView()
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(view)
+        let guideConstraint = view.leadingAnchor.constraint(
+            equalTo: container.safeAreaLayoutGuide.leadingAnchor
+        )
+        guideConstraint.identifier = "content.safeAreaLeading"
+        guideConstraint.isActive = true
+        let nodeID = registry.nodeID(for: view)
+
+        let detail = try await provider.nodeDetail(for: nodeID)
+
+        XCTAssertEqual(
+            value(.commonLayoutRelations, in: detail),
+            .layoutRelations([])
+        )
+        guard case let .array(constraints)? = value(.constraints, in: detail) else {
+            return XCTFail("Expected raw Auto Layout extension values.")
+        }
+        XCTAssertTrue(
+            constraints.compactMap(\.objectValue).contains {
+                $0["identifier"] == .string("content.safeAreaLeading") &&
+                    $0["secondItem"]?.objectValue?["kind"] == .string("layoutGuide")
+            }
         )
     }
 
@@ -196,6 +339,255 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
         } catch {
             XCTAssertEqual((error as? RuntimeError)?.code, .nodeNotFound)
         }
+    }
+
+    func testProviderCollectsGradientLayerAttributes() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAGradientLayer()
+        let colorSpace = try XCTUnwrap(
+            CGColorSpace(name: CGColorSpace.sRGB)
+        )
+        layer.colors = [
+            try XCTUnwrap(
+                CGColor(
+                    colorSpace: colorSpace,
+                    components: [1, 0, 0, 1]
+                )
+            ),
+            try XCTUnwrap(
+                CGColor(
+                    colorSpace: colorSpace,
+                    components: [0, 0, 1, 0.5]
+                )
+            )
+        ]
+        layer.locations = [0.25, 0.75]
+        layer.startPoint = CGPoint(x: 0.1, y: 0.2)
+        layer.endPoint = CGPoint(x: 0.8, y: 0.9)
+        layer.type = .radial
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertEqual(
+            detail.sections.map(\.category),
+            [.layout, .layer, .gradientLayer]
+        )
+        XCTAssertEqual(
+            value(.gradientLayerColors, in: detail),
+            .array([
+                .object([
+                    "colorSpace": .string("srgb"),
+                    "red": .number(1),
+                    "green": .number(0),
+                    "blue": .number(0),
+                    "alpha": .number(1)
+                ]),
+                .object([
+                    "colorSpace": .string("srgb"),
+                    "red": .number(0),
+                    "green": .number(0),
+                    "blue": .number(1),
+                    "alpha": .number(0.5)
+                ])
+            ])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerLocations, in: detail),
+            .array([.number(0.25), .number(0.75)])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerStartPoint, in: detail),
+            .object(["x": .number(0.1), "y": .number(0.2)])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerEndPoint, in: detail),
+            .object(["x": .number(0.8), "y": .number(0.9)])
+        )
+        XCTAssertEqual(
+            value(.gradientLayerType, in: detail),
+            .string("radial")
+        )
+    }
+
+    func testProviderCollectsShapeLayerPathSemantics() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 1, y: 2))
+        path.addLine(to: CGPoint(x: 11, y: 2))
+        path.addQuadCurve(
+            to: CGPoint(x: 21, y: 12),
+            control: CGPoint(x: 16, y: 2)
+        )
+        path.addCurve(
+            to: CGPoint(x: 1, y: 22),
+            control1: CGPoint(x: 21, y: 17),
+            control2: CGPoint(x: 11, y: 22)
+        )
+        path.closeSubpath()
+        layer.path = path
+        layer.fillRule = .evenOdd
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertEqual(
+            detail.sections.map(\.category),
+            [.layout, .layer, .shapeLayer]
+        )
+        XCTAssertEqual(
+            value(.shapeLayerFillRule, in: detail),
+            .string("even-odd")
+        )
+        let pathValue = try XCTUnwrap(
+            value(.shapeLayerPath, in: detail)?.objectValue
+        )
+        XCTAssertEqual(pathValue["coordinateSpace"], .string("local"))
+        XCTAssertEqual(pathValue["elementCount"], .integer(5))
+        XCTAssertEqual(pathValue["returnedElementCount"], .integer(5))
+        XCTAssertEqual(pathValue["truncated"], .boolean(false))
+        XCTAssertEqual(
+            pathValue["boundingBox"],
+            .object([
+                "x": .number(1),
+                "y": .number(2),
+                "width": .number(20),
+                "height": .number(20)
+            ])
+        )
+        let elements = try XCTUnwrap(pathValue["elements"]?.arrayValue)
+        XCTAssertEqual(elements.count, 5)
+        XCTAssertEqual(
+            elements.compactMap(\.objectValue).compactMap { $0["type"] },
+            [
+                .string("moveTo"),
+                .string("lineTo"),
+                .string("quadCurveTo"),
+                .string("curveTo"),
+                .string("closeSubpath")
+            ]
+        )
+        XCTAssertEqual(
+            elements[2].objectValue?["controlPoint"]?.objectValue?["x"],
+            .number(16)
+        )
+        XCTAssertEqual(
+            elements[3].objectValue?["controlPoint2"]?.objectValue?["y"],
+            .number(22)
+        )
+    }
+
+    func testProviderOmitsNilShapePathButKeepsFillRule() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertNil(value(.shapeLayerPath, in: detail))
+        XCTAssertEqual(
+            value(.shapeLayerFillRule, in: detail),
+            .string("non-zero")
+        )
+    }
+
+    func testProviderReturnsEmptyShapePathWithoutBoundingBox() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+        layer.path = CGMutablePath()
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        let pathValue = try XCTUnwrap(
+            value(.shapeLayerPath, in: detail)?.objectValue
+        )
+        XCTAssertEqual(pathValue["elementCount"], .integer(0))
+        XCTAssertEqual(pathValue["returnedElementCount"], .integer(0))
+        XCTAssertEqual(pathValue["truncated"], .boolean(false))
+        XCTAssertEqual(pathValue["elements"], .array([]))
+        XCTAssertNil(pathValue["boundingBox"])
+    }
+
+    func testProviderKeepsDegenerateShapePathBoundingBox() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAShapeLayer()
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 1, y: 2))
+        path.addLine(to: CGPoint(x: 11, y: 2))
+        layer.path = path
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        let pathValue = try XCTUnwrap(
+            value(.shapeLayerPath, in: detail)?.objectValue
+        )
+        XCTAssertEqual(
+            pathValue["boundingBox"],
+            .object([
+                "x": .number(1),
+                "y": .number(2),
+                "width": .number(10),
+                "height": .number(0)
+            ])
+        )
+    }
+
+    func testShapePathProjectorReportsTruncation() {
+        let path = CGMutablePath()
+        path.move(to: .zero)
+        for index in 1 ... 300 {
+            path.addLine(to: CGPoint(x: CGFloat(index), y: 0))
+        }
+
+        guard case let .object(value)? = UIKitShapePathProjector().value(
+            for: path
+        ) else {
+            return XCTFail("Expected a bounded Shape Layer path.")
+        }
+        XCTAssertEqual(value["elementCount"], .integer(301))
+        XCTAssertEqual(value["returnedElementCount"], .integer(256))
+        XCTAssertEqual(value["truncated"], .boolean(true))
+    }
+
+    func testShapePathProjectorRejectsNonFinitePoint() {
+        let projector = UIKitShapePathProjector()
+
+        XCTAssertNil(
+            projector.pointValueIfFinite(
+                CGPoint(x: CGFloat.nan, y: 0)
+            )
+        )
+        XCTAssertNil(
+            projector.pointValueIfFinite(
+                CGPoint(x: 0, y: CGFloat.infinity)
+            )
+        )
+    }
+
+    func testProviderDoesNotInferGradientLocations() async throws {
+        let registry = RuntimeNodeRegistry()
+        let provider = UIKitRuntimeNodeDetailProvider(nodeRegistry: registry)
+        let layer = CAGradientLayer()
+        layer.locations = nil
+
+        let detail = try await provider.nodeDetail(
+            for: registry.nodeID(for: layer)
+        )
+
+        XCTAssertNil(value(.gradientLayerLocations, in: detail))
     }
 
     func testProviderOmitsUndefinedIntrinsicContentSize() async throws {
@@ -329,7 +721,23 @@ final class UIKitRuntimeNodeDetailPayloadProviderTests: XCTestCase {
     }
 }
 
+private extension RuntimeAttributeValue {
+    var objectValue: [String: RuntimeJSONValue]? {
+        guard case let .object(value) = self else {
+            return nil
+        }
+        return value
+    }
+}
+
 private extension RuntimeJSONValue {
+    var arrayValue: [RuntimeJSONValue]? {
+        guard case let .array(value) = self else {
+            return nil
+        }
+        return value
+    }
+
     var objectValue: [String: RuntimeJSONValue]? {
         guard case let .object(value) = self else {
             return nil

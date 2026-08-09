@@ -148,7 +148,8 @@ final class RuntimeServerTests: XCTestCase {
                     appInfoProvider: provider,
                     hierarchyProvider: hierarchyProvider,
                     nodeDetailProvider: nodeDetailProvider,
-                    attributePatchProvider: attributePatchProvider
+                    attributePatchProvider: attributePatchProvider,
+                    additionalCapabilities: [.uiGraphRelations]
                 )
             }
         )
@@ -198,7 +199,8 @@ final class RuntimeServerTests: XCTestCase {
                         .attributePatching,
                         .hierarchySnapshot,
                         .nodeDetail,
-                        .requestCancellation
+                        .requestCancellation,
+                        .uiGraphRelations
                     ]
                 )
 

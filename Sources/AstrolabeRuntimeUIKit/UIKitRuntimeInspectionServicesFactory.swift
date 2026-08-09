@@ -38,7 +38,8 @@ package final class UIKitRuntimeInspectionServicesFactory: Sendable {
             nodeDetailProvider: UIKitRuntimeNodeDetailProvider(
                 nodeRegistry: nodeRegistry
             ),
-            attributePatchProvider: attributePatchProvider
+            attributePatchProvider: attributePatchProvider,
+            additionalCapabilities: [.uiGraphRelations]
         )
     }
 

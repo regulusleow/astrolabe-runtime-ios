@@ -26,6 +26,10 @@ final class UIKitRuntimeInspectionServicesFactoryTests: XCTestCase {
             secondServices.hierarchyProvider as? UIKitRuntimeHierarchyProvider
         )
 
+        XCTAssertEqual(
+            firstServices.additionalCapabilities,
+            [.uiGraphRelations]
+        )
         XCTAssertTrue(firstProvider.nodeRegistry === secondProvider.nodeRegistry)
 
         let nextSessionProvider = try XCTUnwrap(
