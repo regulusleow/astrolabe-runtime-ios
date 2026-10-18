@@ -22,8 +22,7 @@ enum SwiftUITextAttachmentProjector {
         var local = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 1_500)
         var issues: [RuntimeInspectionIssue] = []
         var fields: [String: [RuntimeSemanticTextField]] = [:]
-        var originalTextScopes = Set<String>()
-        var originalScopeUnproven = false
+        var scopeProof = SwiftUITextScopeProof()
         var outputStopped = false
         var pending: [(value: Any, path: String, depth: Int, ancestors: Set<ObjectIdentifier>)] = []
         guard NSStringFromClass(type(of: node)) == "SwiftUI.AccessibilityNode",
@@ -36,7 +35,7 @@ enum SwiftUITextAttachmentProjector {
         }
         // The public label getter is read by the AX collector before this bounded reflection.
         let nodeFields = Array(Mirror(reflecting: node).children.prefix(51))
-        if nodeFields.count > 50 { local.markTruncated(); originalScopeUnproven = true }
+        if nodeFields.count > 50 { local.markTruncated(); scopeProof.markUnknownOriginalBranch() }
         let environment = nodeFields.prefix(50).first { $0.label == "environment" }?.value as? EnvironmentValues
         for field in nodeFields.prefix(50) {
             if let name = field.label, name == "attachmentsStorage" || name == "cachedCombinedAttachment" {
@@ -54,7 +53,9 @@ enum SwiftUITextAttachmentProjector {
             }
             let typeName = String(reflecting: type(of: entry.value))
             let isOriginal = entry.path.hasPrefix("attachmentsStorage/")
-            if isOriginal && typeName == "SwiftUI.Text" { originalTextScopes.insert(entry.path) }
+            if isOriginal && typeName == "SwiftUI.Text" { scopeProof.recordOriginalText(path: entry.path) }
+            // Proven bit-set metadata is a leaf, never projected as render visibility or traits.
+            if SwiftUITextMetadataPolicy.isLeaf(typeName) { continue }
             let isTextField = entry.path.contains("/texts/") || entry.path.contains("/layoutProperties/")
             var attributes: [RuntimeAttribute] = []
             var isLeaf = false
@@ -116,7 +117,7 @@ enum SwiftUITextAttachmentProjector {
             if isLeaf { continue }
             guard let allowedFields = fieldsForTraversal(typeName: typeName) else {
                 issues.append(semanticIssue("unsupportedLayout", path: entry.path))
-                if isOriginal { originalScopeUnproven = true }
+                if isOriginal { scopeProof.markUnknownOriginalBranch() }
                 continue
             }
             // Empty field sets mean scalar/Font/Color leaves; only verified arrays expose all items.
@@ -125,7 +126,7 @@ enum SwiftUITextAttachmentProjector {
             let mirror = Mirror(reflecting: entry.value)
             if String(describing: mirror.displayStyle).contains("foreignReference") {
                 issues.append(semanticIssue("unsupportedLayout", path: entry.path))
-                if isOriginal { originalScopeUnproven = true }
+                if isOriginal { scopeProof.markUnknownOriginalBranch() }
                 continue
             }
             var ancestors = entry.ancestors
@@ -134,16 +135,36 @@ enum SwiftUITextAttachmentProjector {
                     (typeName.hasPrefix("SwiftUI.") && typeName.hasSuffix(".LocalizedTextStorage"))
                 guard allowed else {
                     issues.append(semanticIssue("unsupportedLayout", path: entry.path))
-                    if isOriginal { originalScopeUnproven = true }
+                    if isOriginal { scopeProof.markUnknownOriginalBranch() }
                     continue
                 }
                 guard ancestors.insert(ObjectIdentifier(entry.value as AnyObject)).inserted else {
                     issues.append(semanticIssue("repeatedReference", path: entry.path)); continue
                 }
             }
-            for (index, child) in mirror.children.prefix(51).enumerated() {
+            let children = Array(mirror.children.prefix(51))
+            if typeName == "SwiftUI.LocalizedStringKey" {
+                let formattingValue = children.prefix(50).first { $0.label == "hasFormatting" }?.value
+                let formatting = formattingValue.flatMap { String(reflecting: type(of: $0)) == "Swift.Bool" ? $0 as? Bool : nil }
+                let arguments = children.prefix(50).first { $0.label == "arguments" }?.value
+                let argumentType = arguments.map { String(reflecting: type(of: $0)) }
+                // Only collection shape is read. FormatArgument values are never reflected or evaluated.
+                let empty = argumentType == "Swift.Array<SwiftUI.LocalizedStringKey.FormatArgument>" ? (arguments as? [Any])?.isEmpty : nil
+                if !SwiftUITextMetadataPolicy.localizedKeyHasNoHiddenText(hasFormatting: formatting, argumentsType: argumentType, argumentsAreEmpty: empty) {
+                    issues.append(semanticIssue("unsupportedLayout", path: entry.path))
+                    if isOriginal { scopeProof.markUnknownOriginalBranch() }
+                }
+            }
+            for (index, child) in children.enumerated() {
                 guard index < 50, pending.count < 1_500 else { local.markTruncated(); break }
-                guard allowedFields.isEmpty || child.label.map(allowedFields.contains) == true else { continue }
+                let childType = String(reflecting: type(of: child.value))
+                let isEmpty = childType == "Swift.Array<SwiftUI.LocalizedStringKey.FormatArgument>" ? (child.value as? [Any])?.isEmpty : nil
+                if SwiftUITextMetadataPolicy.canIgnoreField(container: typeName, field: child.label, type: childType,
+                                                            isEmptyCollection: isEmpty, booleanValue: childType == "Swift.Bool" ? child.value as? Bool : nil) { continue }
+                guard scopeProof.allowsField(child.label, permitted: allowedFields, isArray: typeName.hasPrefix("Swift.Array<"), isOriginal: isOriginal) else {
+                    issues.append(semanticIssue("unsupportedLayout", path: entry.path + "/" + (child.label ?? String(index))))
+                    continue
+                }
                 pending.append((child.value, entry.path + "/" + (child.label ?? String(index)), entry.depth + 1, ancestors))
             }
         }
@@ -159,7 +180,7 @@ enum SwiftUITextAttachmentProjector {
         // All fields must belong to one proven original Text scope. Cached fields never vote.
         let originalFields = candidates.filter { $0.source == semanticName("ios.swiftui.attachmentsStorage") }.flatMap(\.fields)
         var canonical: [RuntimeAttribute] = []
-        if originalTextScopes.count == 1 && !originalScopeUnproven && !local.truncated && !budget.truncated {
+        if scopeProof.canPromote && !local.truncated && !budget.truncated {
             for name in ["common.text.content", "common.text.fontName", "common.text.fontSize", "common.text.color"] {
                 let matches = originalFields.filter { $0.attribute.identifier.rawValue == name }
                 if let first = matches.first, matches.allSatisfy({ $0.attribute == first.attribute }) {
