@@ -1,4 +1,3 @@
-#if canImport(UIKit)
 import AstrolabeProtocol
 
 /// Counts actual visits; an exact boundary is truncated only when more work is attempted.
@@ -22,10 +21,86 @@ struct UIKitSemanticTraversalBudget {
     }
 
     mutating func markTruncated() { truncated = true }
+
+    /// Child slots are bounded independently of unique object visits, including repeated references.
+    mutating func boundedChildCount(_ totalCount: Int) -> Int {
+        if totalCount > 2_000 { truncated = true }
+        return min(totalCount, 2_000)
+    }
+}
+
+/// Pure proof state shared by the actual private Text adapter and algorithm tests.
+struct SwiftUITextScopeProof {
+    /// Observed original Text scopes; combined-cache scopes never enter this set.
+    private var originalPaths = Set<String>()
+    /// Whether an original branch or field could not be identified completely.
+    private var originalLayoutUnproven = false
+
+    /// Whether exactly one original Text scope has been completely identified.
+    var canPromote: Bool { originalPaths.count == 1 && !originalLayoutUnproven }
+
+    mutating func recordOriginalText(path: String) { originalPaths.insert(path) }
+    mutating func markUnknownOriginalBranch() { originalLayoutUnproven = true }
+
+    mutating func allowsField(_ label: String?, permitted: Set<String>, isArray: Bool, isOriginal: Bool) -> Bool {
+        if isArray || label.map(permitted.contains) == true { return true }
+        if isOriginal { originalLayoutUnproven = true }
+        return false
+    }
+}
+
+/// iOS 27.0 type-only evidence: these exact metadata fields cannot add another original Text.
+enum SwiftUITextMetadataPolicy {
+    static func isLeaf(_ type: String) -> Bool {
+        type == "SwiftUI.AccessibilityNullableOptionSet<SwiftUI.AccessibilityTraitSet>" ||
+        type == "SwiftUI.AccessibilityNullableOptionSet<SwiftUI.AccessibilityVisibility>"
+    }
+
+    static func localizedKeyHasNoHiddenText(hasFormatting: Bool?, argumentsType: String?, argumentsAreEmpty: Bool?) -> Bool {
+        hasFormatting == false && argumentsType == "Swift.Array<SwiftUI.LocalizedStringKey.FormatArgument>" && argumentsAreEmpty == true
+    }
+
+    static func canIgnoreField(container: String, field: String?, type: String,
+                               isEmptyCollection: Bool? = nil, booleanValue: Bool? = nil) -> Bool {
+        guard let field else { return false }
+        if container.hasPrefix("SwiftUI.AccessibilityProperties."), container.hasSuffix(".Entry"), field == "key" {
+            return ["SwiftUI.AccessibilityProperties.TraitsKey.Type", "SwiftUI.AccessibilityProperties.LabelKey.Type", "SwiftUI.AccessibilityProperties.VisibilityKey.Type"].contains(type)
+        }
+        if container.hasPrefix("SwiftUI."), container.hasSuffix(".LocalizedTextStorage") {
+            return (field == "table" && type == "Swift.Optional<Swift.String>") ||
+                (field == "bundle" && type == "Swift.Optional<__C.NSBundle>")
+        }
+        switch container {
+        case "SwiftUI.AccessibilityNodeAttachmentStorage":
+            return ["modified": "Swift.Bool", "token": "Swift.Optional<SwiftUI.AccessibilityAttachmentToken>",
+                    "geometry": "Swift.Optional<SwiftUI.AccessibilityGeometryStorage>"][field] == type
+        case "SwiftUI.AccessibilityAttachment":
+            return field == "platformElement" && type == "Swift.Optional<__C.NSObject & SwiftUI.PlatformAccessibilityElementProtocol>"
+        case "SwiftUI.AccessibilityLabelStorage":
+            return field == "placement" && type == "SwiftUI.AccessibilityLabelStorage.Placement"
+        case "SwiftUI.LocalizedStringKey":
+            return (field == "hasFormatting" && type == "Swift.Bool" && booleanValue == false) ||
+                (field == "arguments" && type == "Swift.Array<SwiftUI.LocalizedStringKey.FormatArgument>" && isEmptyCollection == true)
+        case "SwiftUI.TextLayoutProperties":
+            if field == "flags" {
+                // Only the compiler's anonymous-context identity varies; owner and nested type stay exact.
+                let prefix = "(extension in SwiftUI):SwiftUI.TextLayoutProperties.(unknown context at $"
+                let suffix = ").Flags"
+                guard type.hasPrefix(prefix), type.hasSuffix(suffix) else { return false }
+                let context = type.dropFirst(prefix.count).dropLast(suffix.count)
+                return !context.isEmpty && context.allSatisfy(\.isHexDigit)
+            }
+            return ["truncationMode": "SwiftUI.Text.TruncationMode", "multilineTextAlignment": "SwiftUI.TextAlignment",
+                    "layoutDirection": "SwiftUI.LayoutDirection", "transitionStyle": "SwiftUI.ContentTransition.Style",
+                    "writingMode": "SwiftUI.Text.WritingMode", "bodyHeadOutdent": "CoreGraphics.CGFloat",
+                    "pixelLength": "CoreGraphics.CGFloat", "textSizing": "SwiftUI.Text.Sizing",
+                    "textBaseline": "(extension in SwiftUI):SwiftUI.Text.Baseline", "textShape": "SwiftUI.TextShape"][field] == type
+        default: return false
+        }
+    }
 }
 
 func semanticName(_ value: String) -> RuntimeNamespacedIdentifier { try! .init(rawValue: value) }
 func semanticIssue(_ code: String, path: String? = nil) -> RuntimeInspectionIssue {
     try! RuntimeInspectionIssue(code: semanticName("ios.swiftui." + code), path: path)
 }
-#endif

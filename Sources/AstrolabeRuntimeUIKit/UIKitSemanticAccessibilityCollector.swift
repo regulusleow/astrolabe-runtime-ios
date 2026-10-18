@@ -26,6 +26,38 @@ struct UIKitSemanticAccessibilityCollector {
     /// Shared native registry; semantic IDs never use its identifiers.
     let registry: RuntimeNodeRegistry
 
+    /// Bounded readiness only: no AX value, private attachments, or output objects are read/created.
+    func publicSemanticTreeIsReady(in window: UIWindow) -> Bool {
+        var budget = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 2_000)
+        var pending: [(object: NSObject, depth: Int)] = [(window, 0)]
+        var seen = Set<ObjectIdentifier>()
+        while let entry = pending.popLast() {
+            guard seen.insert(ObjectIdentifier(entry.object)).inserted,
+                  budget.consume(depth: entry.depth) else { continue }
+            let object = entry.object
+            if object.isAccessibilityElement || object.accessibilityLabel?.isEmpty == false ||
+                object.accessibilityHint?.isEmpty == false || !UIKitRuntimeAccessibilityMapper().runtimeTraits(object.accessibilityTraits).isEmpty { return true }
+            func enqueue(_ value: Any) {
+                guard let child = value as? NSObject else { return }
+                guard pending.count + budget.visits < 2_000 else { budget.markTruncated(); return }
+                pending.append((child, entry.depth + 1))
+            }
+            if let elements = object.accessibilityElements, !elements.isEmpty {
+                for child in elements.prefix(budget.boundedChildCount(elements.count)).reversed() { enqueue(child) }
+            } else {
+                let count = object.accessibilityElementCount()
+                if count != NSNotFound && count > 0 {
+                    for index in (0..<budget.boundedChildCount(count)).reversed() {
+                        if let child = object.accessibilityElement(at: index) { enqueue(child) }
+                    }
+                } else if let view = object as? UIView {
+                    for child in view.subviews.prefix(budget.boundedChildCount(view.subviews.count)).reversed() { enqueue(child) }
+                }
+            }
+        }
+        return false
+    }
+
     func capture(window: UIWindow, snapshotID: RuntimeOpaqueIdentifier, capturedAt: Double,
                  renderRoots: [RuntimeNode], privacyIssue: RuntimeInspectionIssue?) throws -> Capture {
         var budget = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 2_000)
@@ -132,7 +164,7 @@ struct UIKitSemanticAccessibilityCollector {
                 if let node = try walk(child, parent: nodeID, sibling: children.count, depth: depth + 1) { children.append(node) }
             }
             if let elements = object.accessibilityElements, !elements.isEmpty {
-                for (index, child) in elements.prefix(2_001).enumerated() {
+                for (index, child) in elements.prefix(budget.boundedChildCount(elements.count)).enumerated() {
                     try append(child)
                     if outputStopped || budget.visits == 2_000 {
                         if index + 1 < elements.count { budget.markTruncated() }
@@ -142,7 +174,7 @@ struct UIKitSemanticAccessibilityCollector {
             } else {
                 let count = object.accessibilityElementCount()
                 if count != NSNotFound && count > 0 {
-                    for index in 0..<min(count, 2_001) {
+                    for index in 0..<budget.boundedChildCount(count) {
                         if let child = object.accessibilityElement(at: index) { try append(child) }
                         else { issues.append(semanticIssue("missingChild")) }
                         if outputStopped || budget.visits == 2_000 {
@@ -151,7 +183,7 @@ struct UIKitSemanticAccessibilityCollector {
                         }
                     }
                 } else if let view = object as? UIView {
-                    for (index, child) in view.subviews.prefix(2_001).enumerated() {
+                    for (index, child) in view.subviews.prefix(budget.boundedChildCount(view.subviews.count)).enumerated() {
                         try append(child)
                         if outputStopped || budget.visits == 2_000 {
                             if index + 1 < view.subviews.count { budget.markTruncated() }

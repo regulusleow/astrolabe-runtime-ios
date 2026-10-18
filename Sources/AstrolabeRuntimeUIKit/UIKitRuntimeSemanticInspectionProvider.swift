@@ -47,18 +47,20 @@ package final class UIKitRuntimeSemanticInspectionProvider: RuntimeSemanticInspe
     package func capture(options: RuntimeSemanticCaptureOptions) async throws -> RuntimeHierarchySnapshotPayload {
         let context = try select(options: options)
         try validate(context)
-        let privacyIssue = securityIssue(in: context.window)
-        var render = try hierarchyProvider.hierarchySnapshot(context: .init(scene: context.scene, windows: [context.window]), redactAccessibilityValues: privacyIssue != nil)
         let collector = UIKitSemanticAccessibilityCollector(registry: registry)
-        var ax = try collector.capture(window: context.window, snapshotID: render.snapshotID, capturedAt: render.capturedAtUnixTime, renderRoots: render.roots, privacyIssue: privacyIssue)
         // Public AX getters may become ready asynchronously. No activation or global notification.
-        for _ in 0..<3 where ax.semanticCount == 0 {
+        // Readiness never reads AX value or Text attachments, and produces no frozen payload.
+        for _ in 0..<3 {
+            if collector.publicSemanticTreeIsReady(in: context.window) { break }
             try await Task.sleep(nanoseconds: 100_000_000)
             try validate(context)
-            let currentPrivacy = securityIssue(in: context.window)
-            render = try hierarchyProvider.hierarchySnapshot(context: .init(scene: context.scene, windows: [context.window]), redactAccessibilityValues: currentPrivacy != nil)
-            ax = try collector.capture(window: context.window, snapshotID: render.snapshotID, capturedAt: render.capturedAtUnixTime, renderRoots: render.roots, privacyIssue: currentPrivacy)
         }
+        try Task.checkCancellation()
+        try validate(context)
+        // The safety proof is taken after the last suspension; final reads below are synchronous.
+        let privacyIssue = securityIssue(in: context.window)
+        let render = try hierarchyProvider.hierarchySnapshot(context: .init(scene: context.scene, windows: [context.window]), redactAccessibilityValues: privacyIssue != nil)
+        let ax = try collector.capture(window: context.window, snapshotID: render.snapshotID, capturedAt: render.capturedAtUnixTime, renderRoots: render.roots, privacyIssue: privacyIssue)
         try Task.checkCancellation()
         try validate(context)
         let issues = ax.semanticCount == 0 ? ax.issues + [semanticIssue("treeUnavailable")] : ax.issues
