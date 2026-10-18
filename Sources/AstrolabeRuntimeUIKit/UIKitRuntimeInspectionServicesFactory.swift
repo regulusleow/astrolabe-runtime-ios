@@ -19,6 +19,10 @@ package final class UIKitRuntimeInspectionServicesFactory: Sendable {
 
     private let nodeRegistry = RuntimeNodeRegistry()
     private let targetIdentifier: RuntimeOpaqueIdentifier
+    /// Reuses the explicit render collector for semantic requests.
+    private lazy var hierarchyProvider = UIKitRuntimeHierarchyProvider(nodeRegistry: nodeRegistry, targetIdentifier: targetIdentifier)
+    /// Frozen values survive transport reconnections for the bounded capture lifetime.
+    private lazy var semanticProvider = UIKitRuntimeSemanticInspectionProvider(registry: nodeRegistry, hierarchyProvider: hierarchyProvider, store: RuntimeSemanticSnapshotStore())
     private lazy var attributePatchProvider = RuntimeAttributePatchService(
         nodeRegistry: nodeRegistry,
         mutator: UIKitRuntimeAttributeMutator()
@@ -31,14 +35,12 @@ package final class UIKitRuntimeInspectionServicesFactory: Sendable {
     package func makeServices() -> RuntimeInspectionServices {
         return RuntimeInspectionServices(
             appInfoProvider: UIKitRuntimeAppInfoProvider(),
-            hierarchyProvider: UIKitRuntimeHierarchyProvider(
-                nodeRegistry: nodeRegistry,
-                targetIdentifier: targetIdentifier
-            ),
+            hierarchyProvider: hierarchyProvider,
             nodeDetailProvider: UIKitRuntimeNodeDetailProvider(
                 nodeRegistry: nodeRegistry
             ),
             attributePatchProvider: attributePatchProvider,
+            semanticProvider: semanticProvider,
             additionalCapabilities: [.uiGraphRelations]
         )
     }

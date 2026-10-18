@@ -166,16 +166,14 @@ package actor RuntimeServer {
         let hierarchyHandler = TypedRuntimeRequestHandler<
             RuntimeHierarchySnapshotParameters,
             RuntimeHierarchySnapshotPayload
-        >(method: .hierarchySnapshot) { _ in
-            try await inspectionServices.hierarchyProvider.hierarchySnapshot()
+        >(method: .hierarchySnapshot) { request in
+            try await inspectionServices.capture(parameters: request.parameters)
         }
         let nodeDetailHandler = TypedRuntimeRequestHandler<
             RuntimeNodeDetailParameters,
             RuntimeNodeDetailPayload
         >(method: .nodeDetail) { request in
-            try await inspectionServices.nodeDetailProvider.nodeDetail(
-                for: request.parameters.nodeID
-            )
+            try await inspectionServices.detail(parameters: request.parameters)
         }
         var features = [
             Feature(capability: .applicationInfo, handler: appInfoHandler),
@@ -228,10 +226,11 @@ package actor RuntimeServer {
                 Feature(capability: .attributePatching, handler: clearPatchesHandler)
             ])
         }
+        let semanticCapabilities: Set<RuntimeCapability> = inspectionServices.semanticProvider == nil ? [] : [.semanticInspection]
         let capabilities = Array(
             Set(features.map(\.capability)).union(
-                inspectionServices.additionalCapabilities
-            )
+                inspectionServices.additionalCapabilities.subtracting([.semanticInspection])
+            ).union(semanticCapabilities)
         ).sorted {
             $0.rawValue < $1.rawValue
         }

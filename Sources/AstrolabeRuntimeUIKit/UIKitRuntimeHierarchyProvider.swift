@@ -68,5 +68,10 @@ package final class UIKitRuntimeHierarchyProvider: RuntimeHierarchyProviding {
     package func hierarchySnapshot() async throws -> RuntimeHierarchySnapshotPayload {
         try collector.capture(context: windowProvider.activeWindowContext())
     }
+
+    /// Semantic requests capture only the already validated explicit window context.
+    func hierarchySnapshot(context: UIKitRuntimeWindowContext, redactAccessibilityValues: Bool) throws -> RuntimeHierarchySnapshotPayload {
+        try collector.capture(context: context, redactAccessibilityValues: redactAccessibilityValues)
+    }
 }
 #endif
