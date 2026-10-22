@@ -35,11 +35,16 @@ struct SwiftUITextScopeProof {
     private var originalPaths = Set<String>()
     /// Whether an original branch or field could not be identified completely.
     private var originalLayoutUnproven = false
+    /// Explicit original Color presence blocks inheritance even when its value is refused.
+    private var originalHasColor = false
 
     /// Whether exactly one original Text scope has been completely identified.
     var canPromote: Bool { originalPaths.count == 1 && !originalLayoutUnproven }
+    /// An unambiguous original Text without any explicit Color may use its own environment.
+    var canInheritColor: Bool { canPromote && !originalHasColor }
 
     mutating func recordOriginalText(path: String) { originalPaths.insert(path) }
+    mutating func recordOriginalColor() { originalHasColor = true }
     mutating func markUnknownOriginalBranch() { originalLayoutUnproven = true }
 
     mutating func allowsField(_ label: String?, permitted: Set<String>, isArray: Bool, isOriginal: Bool) -> Bool {
@@ -51,6 +56,14 @@ struct SwiftUITextScopeProof {
 
 /// iOS 27.0 type-only evidence: these exact metadata fields cannot add another original Text.
 enum SwiftUITextMetadataPolicy {
+    static func isForegroundStyleKey(_ type: String) -> Bool {
+        let prefix = "SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $"
+        let suffix = ").ForegroundStyleKey>"
+        guard type.hasPrefix(prefix), type.hasSuffix(suffix) else { return false }
+        let context = type.dropFirst(prefix.count).dropLast(suffix.count)
+        return !context.isEmpty && context.allSatisfy(\.isHexDigit)
+    }
+
     static func isLeaf(_ type: String) -> Bool {
         type == "SwiftUI.AccessibilityNullableOptionSet<SwiftUI.AccessibilityTraitSet>" ||
         type == "SwiftUI.AccessibilityNullableOptionSet<SwiftUI.AccessibilityVisibility>"

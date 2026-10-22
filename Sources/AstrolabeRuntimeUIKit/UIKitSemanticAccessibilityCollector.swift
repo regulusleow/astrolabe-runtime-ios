@@ -120,13 +120,14 @@ struct UIKitSemanticAccessibilityCollector {
             var attributes: [RuntimeAttribute] = []
             var projectionTruncated = false
             let projectionStartBytes = outputBytes
+            let role = UIKitSemanticAccessibilityFacts.role(traits: traits, nativeRole: nativeRole(for: object))
             if NSStringFromClass(type(of: object)) == "SwiftUI.AccessibilityNode" {
                 if let privacyIssue { projectionIssues.append(privacyIssue) }
                 else if attachmentObjects >= 30 {
                     projectionIssues.append(semanticIssue("attachmentLimit")); projectionTruncated = true
                 } else {
                     let started = textBudget.visits
-                    let projection = try SwiftUITextAttachmentProjector.project(node: object, budget: &textBudget, outputBytes: &outputBytes)
+                    let projection = try SwiftUITextAttachmentProjector.project(node: object, isTextNode: role == "text", budget: &textBudget, outputBytes: &outputBytes)
                     if textBudget.visits > started { attachmentObjects += 1 }
                     candidates = projection.candidates
                     attributes = projection.canonicalAttributes
@@ -153,7 +154,6 @@ struct UIKitSemanticAccessibilityCollector {
                     source: semanticName("ios.accessibility"), availability: projectionIssues.isEmpty ? .complete : (sections.isEmpty && candidates.isEmpty ? .unavailable : .partial),
                     issues: projectionIssues, wasTruncated: projectionTruncated, textCandidates: candidates))
             let runtimeType = RuntimeType(name: String(reflecting: type(of: object)), ancestors: [])
-            let role = UIKitSemanticAccessibilityFacts.role(traits: traits, nativeRole: nativeRole(for: object))
             let ownNode = try RuntimeSemanticNode(nodeID: nodeID, parentID: parent, siblingIndex: sibling, role: role,
                 runtimeType: runtimeType, accessibility: ax, frameInScreen: validFrame ? runtimeRect(frame, space: .screen) : nil,
                 availableDetailCategories: sections.map { semanticName($0.category.rawValue) }, children: [])

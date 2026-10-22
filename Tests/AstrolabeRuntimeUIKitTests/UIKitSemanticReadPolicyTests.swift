@@ -3,6 +3,24 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testExplicitColorPresenceBlocksInheritanceEvenWithoutProjectedColor() {
+        var proof = SwiftUITextScopeProof()
+        proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")
+        XCTAssertTrue(proof.canInheritColor)
+        proof.recordOriginalColor()
+        XCTAssertTrue(proof.canPromote)
+        XCTAssertFalse(proof.canInheritColor)
+    }
+
+    func testInheritedColorKeyRejectsLookalikeOwnersAndUnknownPrivateLayouts() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isForegroundStyleKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1c7b46310).ForegroundStyleKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isForegroundStyleKey("Other.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).ForegroundStyleKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isForegroundStyleKey("SwiftUI.EnvironmentPropertyKey<Other.(unknown context at $1).ForegroundStyleKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isForegroundStyleKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $notHex).ForegroundStyleKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isForegroundStyleKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).DefaultForegroundStyleKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isForegroundStyleKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).TintKey>"))
+    }
+
     func testUnknownOriginalFieldInvalidatesSingleTextScope() {
         var proof = SwiftUITextScopeProof()
         proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")

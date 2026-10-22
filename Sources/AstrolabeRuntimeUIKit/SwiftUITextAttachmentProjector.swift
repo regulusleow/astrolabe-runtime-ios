@@ -18,7 +18,7 @@ enum SwiftUITextAttachmentProjector {
         let truncated: Bool
     }
 
-    static func project(node: NSObject, budget: inout UIKitSemanticTraversalBudget, outputBytes: inout Int) throws -> Projection {
+    static func project(node: NSObject, isTextNode: Bool, budget: inout UIKitSemanticTraversalBudget, outputBytes: inout Int) throws -> Projection {
         var local = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 1_500)
         var issues: [RuntimeInspectionIssue] = []
         var fields: [String: [RuntimeSemanticTextField]] = [:]
@@ -76,6 +76,7 @@ enum SwiftUITextAttachmentProjector {
                 } else { issues.append(semanticIssue("environmentUnavailable", path: entry.path)) }
             } else if isTextField, typeName == "SwiftUI.Color", let color = entry.value as? Color {
                 isLeaf = true
+                if isOriginal { scopeProof.recordOriginalColor() }
                 if #available(iOS 17.0, *), let environment {
                     let resolved = color.resolve(in: environment)
                     let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
@@ -168,8 +169,7 @@ enum SwiftUITextAttachmentProjector {
                 pending.append((child.value, entry.path + "/" + (child.label ?? String(index)), entry.depth + 1, ancestors))
             }
         }
-        if local.truncated || budget.truncated { issues.append(semanticIssue("budgetExceeded")) }
-        let candidates = try fields.keys.sorted().map { path -> RuntimeSemanticTextCandidate in
+        var candidates = try fields.keys.sorted().map { path -> RuntimeSemanticTextCandidate in
             let values = fields[path] ?? []
             var missing: [RuntimeInspectionIssue] = []
             let hasText = values.contains { ["common.text.content", "ios.swiftui.text.localizedKey"].contains($0.attribute.identifier.rawValue) }
@@ -187,7 +187,19 @@ enum SwiftUITextAttachmentProjector {
                     canonical.append(first.attribute)
                 } else if !matches.isEmpty { issues.append(semanticIssue("ambiguousTextScope")) }
             }
+            if isTextNode, scopeProof.canInheritColor, !originalFields.isEmpty,
+               #available(iOS 17.0, *), let environment,
+               let inherited = try SwiftUIEnvironmentColorReader.read(environment: environment, local: &local, budget: &budget) {
+                let size = try JSONEncoder().encode(inherited).count
+                if outputBytes + size <= 4 * 1024 * 1024 {
+                    outputBytes += size
+                    candidates.append(try RuntimeSemanticTextCandidate(source: semanticName("ios.swiftui.environment"),
+                        path: "environment", fields: [inherited], issues: []))
+                    canonical.append(inherited.attribute)
+                } else { local.markTruncated() }
+            }
         } else if !originalFields.isEmpty { issues.append(semanticIssue("ambiguousTextScope")) }
+        if local.truncated || budget.truncated { issues.append(semanticIssue("budgetExceeded")) }
         if candidates.isEmpty { issues.append(semanticIssue("textAttachmentUnavailable")) }
         issues.append(contentsOf: candidates.flatMap(\.issues))
         return Projection(candidates: candidates, canonicalAttributes: canonical, issues: issues, truncated: local.truncated || budget.truncated)
