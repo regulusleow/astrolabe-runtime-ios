@@ -3,6 +3,15 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testFontEnvironmentKeyRequiresExactOwnerAndPrivateLayout() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isFontKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1c7b625e0).FontKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isFontKey("Other.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).FontKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isFontKey("SwiftUI.EnvironmentPropertyKey<Other.(unknown context at $1).FontKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isFontKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $notHex).FontKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isFontKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).DefaultFontKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isFontKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).ForegroundStyleKey>"))
+    }
+
     func testExplicitColorPresenceBlocksInheritanceEvenWithoutProjectedColor() {
         var proof = SwiftUITextScopeProof()
         proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")

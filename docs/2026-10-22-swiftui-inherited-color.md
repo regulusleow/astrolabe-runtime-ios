@@ -1,5 +1,7 @@
 # SwiftUI 继承文字颜色：受限接入与验收
 
+本文记录首次接入的历史范围；后续 FontKey 链式查找及新产物验收见 [字体与继承颜色组合](2026-10-22-swiftui-font-color-chain.md)。
+
 ## 结论与范围
 
 2026-10-22，在 iOS Runtime 的 `develop` 分支接入当前 Text 环境中的已确认系统纯色。只扩展内部读取路径，复用现有 typed 属性、语义候选、冻结详情及 Host 检查工具；不改 Protocol、Host、MCP、Android，不新增依赖或业务埋点。本轮不推送、不修改系统 Astrolabe 安装。

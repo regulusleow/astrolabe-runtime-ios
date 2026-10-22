@@ -57,8 +57,16 @@ struct SwiftUITextScopeProof {
 /// iOS 27.0 type-only evidence: these exact metadata fields cannot add another original Text.
 enum SwiftUITextMetadataPolicy {
     static func isForegroundStyleKey(_ type: String) -> Bool {
+        isEnvironmentKey(type, name: "ForegroundStyleKey")
+    }
+
+    static func isFontKey(_ type: String) -> Bool {
+        isEnvironmentKey(type, name: "FontKey")
+    }
+
+    private static func isEnvironmentKey(_ type: String, name: String) -> Bool {
         let prefix = "SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $"
-        let suffix = ").ForegroundStyleKey>"
+        let suffix = ")." + name + ">"
         guard type.hasPrefix(prefix), type.hasSuffix(suffix) else { return false }
         let context = type.dropFirst(prefix.count).dropLast(suffix.count)
         return !context.isEmpty && context.allSatisfy(\.isHexDigit)
