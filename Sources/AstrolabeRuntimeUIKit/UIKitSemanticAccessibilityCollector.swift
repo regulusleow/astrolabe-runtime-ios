@@ -74,6 +74,10 @@ struct UIKitSemanticAccessibilityCollector {
         func index(_ node: RuntimeNode) { renderIDs.insert(node.nodeID); node.children.forEach(index) }
         renderRoots.forEach(index)
         let prefix = "semantic-" + UUID().uuidString + "-"
+        let nativeDetails = UIKitRuntimeAttributeCollectorRegistry(
+            nodeRegistry: registry,
+            collectors: [UIKitControlAttributeCollector(), UIKitScrollViewAttributeCollector()]
+        )
 
         func bounded(_ value: String?, path: String) -> String? {
             guard let value, !value.isEmpty else { return nil }
@@ -98,7 +102,9 @@ struct UIKitSemanticAccessibilityCollector {
             else if object.responds(to: NSSelectorFromString("accessibilityIdentifier")) {
                 identifier = bounded(object.value(forKey: "accessibilityIdentifier") as? String, path: "accessibility.identifier")
             } else { identifier = nil }
-            let traits = UIKitRuntimeAccessibilityMapper().runtimeTraits(object.accessibilityTraits)
+            let publicTraits = object.accessibilityTraits
+            var traits = UIKitRuntimeAccessibilityMapper().runtimeTraits(publicTraits)
+            if #available(iOS 17.0, *), publicTraits.contains(.toggleButton) { traits.append("toggleButton") }
             let isElement = object.isAccessibilityElement
             let hasContent = isElement || label != nil || value != nil || hint != nil || identifier != nil || !traits.isEmpty
             if hasContent {
@@ -128,16 +134,29 @@ struct UIKitSemanticAccessibilityCollector {
                     projectionTruncated = projection.truncated
                 }
             }
+            var sections: [RuntimeAttributeSection] = []
+            // Use the already-redacted AX value, not a second getter or a Text candidate.
+            if let section = try UIKitSemanticAccessibilityFacts.section(for: ax) { sections.append(section) }
+            if !attributes.isEmpty { sections.append(.init(category: try .init(rawValue: "common.text"), attributes: attributes)) }
+            var representedViewID: RuntimeOpaqueIdentifier?
+            if let view = object as? UIView {
+                let nativeID = registry.nodeID(for: view)
+                if renderIDs.contains(nativeID) {
+                    representedViewID = nativeID
+                    // Freeze only the same captured UIView's control/scroll facts, never a nearby view's.
+                    sections.append(contentsOf: nativeDetails.sections(for: view))
+                }
+            }
             let detail = RuntimeNodeDetailPayload(nodeID: nodeID,
-                sections: attributes.isEmpty ? [] : [.init(category: try .init(rawValue: "common.text"), attributes: attributes)],
+                sections: sections,
                 semanticContext: try RuntimeSemanticDetailContext(snapshotID: snapshotID, capturedAtUnixTime: capturedAt,
-                    source: semanticName("ios.accessibility"), availability: projectionIssues.isEmpty ? .complete : (candidates.isEmpty ? .unavailable : .partial),
+                    source: semanticName("ios.accessibility"), availability: projectionIssues.isEmpty ? .complete : (sections.isEmpty && candidates.isEmpty ? .unavailable : .partial),
                     issues: projectionIssues, wasTruncated: projectionTruncated, textCandidates: candidates))
             let runtimeType = RuntimeType(name: String(reflecting: type(of: object)), ancestors: [])
-            let role = traits.contains("button") ? "button" : (traits.contains("staticText") ? "text" : "container")
+            let role = UIKitSemanticAccessibilityFacts.role(traits: traits, nativeRole: nativeRole(for: object))
             let ownNode = try RuntimeSemanticNode(nodeID: nodeID, parentID: parent, siblingIndex: sibling, role: role,
                 runtimeType: runtimeType, accessibility: ax, frameInScreen: validFrame ? runtimeRect(frame, space: .screen) : nil,
-                availableDetailCategories: attributes.isEmpty ? [] : [semanticName("common.text")], children: [])
+                availableDetailCategories: sections.map { semanticName($0.category.rawValue) }, children: [])
             let ownBytes = try JSONEncoder().encode(ownNode).count + JSONEncoder().encode(detail).count
             let alreadyCounted = outputBytes - projectionStartBytes
             guard outputBytes + ownBytes - alreadyCounted <= 4 * 1024 * 1024 else {
@@ -150,11 +169,8 @@ struct UIKitSemanticAccessibilityCollector {
             details.append(detail)
             issues.append(contentsOf: projectionIssues)
             if projectionTruncated { budget.markTruncated() }
-            if let view = object as? UIView {
-                let nativeID = registry.nodeID(for: view)
-                if renderIDs.contains(nativeID) {
-                    relations.append(RuntimeNodeRelation(type: semanticName("ios.accessibility.representsView"), sourceNodeID: nodeID, targetNodeID: nativeID, extensions: try .init()))
-                }
+            if let representedViewID {
+                relations.append(RuntimeNodeRelation(type: semanticName("ios.accessibility.representsView"), sourceNodeID: nodeID, targetNodeID: representedViewID, extensions: try .init()))
             }
             var children: [RuntimeSemanticNode] = []
             func append(_ child: Any) throws {
@@ -207,6 +223,22 @@ struct UIKitSemanticAccessibilityCollector {
         if budget.truncated && !unique.contains(semanticIssue("budgetExceeded")) { unique.append(semanticIssue("budgetExceeded")) }
         return Capture(roots: root.map { [$0] } ?? [], details: details, relations: relations,
                        issues: unique, visits: budget.visits, semanticCount: semanticCount, truncated: budget.truncated || textBudget.truncated)
+    }
+
+    private func nativeRole(for object: NSObject) -> String? {
+        // Public type checks are object-identity evidence, not runtime class-name guesses.
+        switch object {
+        case is UITextField, is UITextView, is UISearchBar: return "input"
+        case is UITableView, is UICollectionView: return "list"
+        case is UIScrollView: return "scroll"
+        case is UIWindow: return "window"
+        case is UIStackView: return "stack"
+        case is UIButton: return "button"
+        case is UIControl: return "control"
+        case is UIImageView: return "image"
+        case is UILabel: return "text"
+        default: return nil
+        }
     }
 }
 #endif
