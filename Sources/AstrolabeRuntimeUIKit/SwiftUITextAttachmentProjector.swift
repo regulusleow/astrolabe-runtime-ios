@@ -64,14 +64,10 @@ enum SwiftUITextAttachmentProjector {
             }
             if isTextField, typeName == "SwiftUI.Font", let font = entry.value as? Font {
                 isLeaf = true
+                if isOriginal { scopeProof.recordOriginalFont() }
                 if #available(iOS 26.0, *), let environment {
-                    let resolved = font.resolve(in: environment.fontResolutionContext)
-                    let size = Double(resolved.pointSize)
-                    if size.isFinite && size > 0 {
-                        attributes = [attribute("common.text.fontName", .string(CTFontCopyPostScriptName(resolved.ctFont) as String)),
-                                      attribute("common.text.fontSize", .measurement(.init(value: size, unit: .scaledLogical))),
-                                      attribute("ios.swiftui.text.isBold", .boolean(resolved.isBold)),
-                                      attribute("ios.swiftui.text.isMonospaced", .boolean(resolved.isMonospaced))]
+                    if let resolved = fontAttributes(font, environment: environment) {
+                        attributes = resolved
                     } else { issues.append(semanticIssue("invalidValue", path: entry.path)) }
                 } else { issues.append(semanticIssue("environmentUnavailable", path: entry.path)) }
             } else if isTextField, typeName == "SwiftUI.Color", let color = entry.value as? Color {
@@ -187,22 +183,52 @@ enum SwiftUITextAttachmentProjector {
                     canonical.append(first.attribute)
                 } else if !matches.isEmpty { issues.append(semanticIssue("ambiguousTextScope")) }
             }
-            if isTextNode, scopeProof.canInheritColor, !originalFields.isEmpty,
-               #available(iOS 17.0, *), let environment,
-               let inherited = try SwiftUIEnvironmentColorReader.read(environment: environment, local: &local, budget: &budget) {
-                let size = try JSONEncoder().encode(inherited).count
-                if outputBytes + size <= 4 * 1024 * 1024 {
-                    outputBytes += size
+            if isTextNode, !originalFields.isEmpty, let environment {
+                var inheritedFields: [RuntimeSemanticTextField] = []
+                if scopeProof.canInheritFont, #available(iOS 26.0, *),
+                   local.consume(depth: 1), budget.consume(depth: 1), let font = environment.font,
+                   local.consume(depth: 2), budget.consume(depth: 2) {
+                    if let resolved = fontAttributes(font, environment: environment) {
+                        let fontFields = try resolved.map { try RuntimeSemanticTextField(path: "environment/font", attribute: $0) }
+                        let size = try fontFields.reduce(0) { try $0 + JSONEncoder().encode($1).count }
+                        if outputBytes + size <= 4 * 1024 * 1024 {
+                            outputBytes += size
+                            inheritedFields.append(contentsOf: fontFields)
+                            canonical.append(contentsOf: resolved.filter { $0.identifier.rawValue.hasPrefix("common.text.") })
+                        } else { local.markTruncated() }
+                    } else { issues.append(semanticIssue("invalidValue", path: "environment/font")) }
+                }
+                if scopeProof.canInheritColor, !local.truncated, !budget.truncated,
+                   #available(iOS 17.0, *),
+                   let inherited = try SwiftUIEnvironmentColorReader.read(environment: environment, local: &local, budget: &budget) {
+                    let size = try JSONEncoder().encode(inherited).count
+                    if outputBytes + size <= 4 * 1024 * 1024 {
+                        outputBytes += size
+                        inheritedFields.append(inherited)
+                        canonical.append(inherited.attribute)
+                    } else { local.markTruncated() }
+                }
+                if !inheritedFields.isEmpty {
                     candidates.append(try RuntimeSemanticTextCandidate(source: semanticName("ios.swiftui.environment"),
-                        path: "environment", fields: [inherited], issues: []))
-                    canonical.append(inherited.attribute)
-                } else { local.markTruncated() }
+                        path: "environment", fields: inheritedFields, issues: []))
+                }
             }
         } else if !originalFields.isEmpty { issues.append(semanticIssue("ambiguousTextScope")) }
         if local.truncated || budget.truncated { issues.append(semanticIssue("budgetExceeded")) }
         if candidates.isEmpty { issues.append(semanticIssue("textAttachmentUnavailable")) }
         issues.append(contentsOf: candidates.flatMap(\.issues))
         return Projection(candidates: candidates, canonicalAttributes: canonical, issues: issues, truncated: local.truncated || budget.truncated)
+    }
+
+    @available(iOS 26.0, *)
+    private static func fontAttributes(_ font: Font, environment: EnvironmentValues) -> [RuntimeAttribute]? {
+        let resolved = font.resolve(in: environment.fontResolutionContext)
+        let size = Double(resolved.pointSize)
+        guard size.isFinite && size > 0 else { return nil }
+        return [RuntimeAttribute(identifier: try! .init(rawValue: "common.text.fontName"), value: .string(CTFontCopyPostScriptName(resolved.ctFont) as String)),
+                RuntimeAttribute(identifier: try! .init(rawValue: "common.text.fontSize"), value: .measurement(.init(value: size, unit: .scaledLogical))),
+                RuntimeAttribute(identifier: try! .init(rawValue: "ios.swiftui.text.isBold"), value: .boolean(resolved.isBold)),
+                RuntimeAttribute(identifier: try! .init(rawValue: "ios.swiftui.text.isMonospaced"), value: .boolean(resolved.isMonospaced))]
     }
 
     private static func fieldName(_ path: String) -> String {

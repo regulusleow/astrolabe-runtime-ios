@@ -37,14 +37,19 @@ struct SwiftUITextScopeProof {
     private var originalLayoutUnproven = false
     /// Explicit original Color presence blocks inheritance even when its value is refused.
     private var originalHasColor = false
+    /// Explicit original Font presence blocks inheritance even when resolution fails.
+    private var originalHasFont = false
 
     /// Whether exactly one original Text scope has been completely identified.
     var canPromote: Bool { originalPaths.count == 1 && !originalLayoutUnproven }
     /// An unambiguous original Text without any explicit Color may use its own environment.
     var canInheritColor: Bool { canPromote && !originalHasColor }
+    /// An unambiguous original Text without an explicit Font may use its environment font.
+    var canInheritFont: Bool { canPromote && !originalHasFont }
 
     mutating func recordOriginalText(path: String) { originalPaths.insert(path) }
     mutating func recordOriginalColor() { originalHasColor = true }
+    mutating func recordOriginalFont() { originalHasFont = true }
     mutating func markUnknownOriginalBranch() { originalLayoutUnproven = true }
 
     mutating func allowsField(_ label: String?, permitted: Set<String>, isArray: Bool, isOriginal: Bool) -> Bool {

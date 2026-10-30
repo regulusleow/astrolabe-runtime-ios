@@ -3,6 +3,30 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testExplicitFontPresenceBlocksInheritanceEvenWithoutProjectedFont() {
+        var proof = SwiftUITextScopeProof()
+        proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")
+        XCTAssertTrue(proof.canInheritFont)
+        proof.recordOriginalFont()
+        XCTAssertTrue(proof.canPromote)
+        XCTAssertFalse(proof.canInheritFont)
+        XCTAssertTrue(proof.canInheritColor)
+    }
+
+    func testInheritedFontRequiresExactlyOneCompleteOriginalText() {
+        var proof = SwiftUITextScopeProof()
+        XCTAssertFalse(proof.canInheritFont)
+        proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")
+        XCTAssertTrue(proof.canInheritFont)
+        proof.recordOriginalText(path: "attachmentsStorage/0/texts/1")
+        XCTAssertFalse(proof.canInheritFont)
+
+        var unknown = SwiftUITextScopeProof()
+        unknown.recordOriginalText(path: "attachmentsStorage/0/texts/0")
+        unknown.markUnknownOriginalBranch()
+        XCTAssertFalse(unknown.canInheritFont)
+    }
+
     func testFontEnvironmentKeyRequiresExactOwnerAndPrivateLayout() {
         XCTAssertTrue(SwiftUITextMetadataPolicy.isFontKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1c7b625e0).FontKey>"))
         XCTAssertFalse(SwiftUITextMetadataPolicy.isFontKey("Other.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).FontKey>"))
@@ -19,6 +43,7 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
         proof.recordOriginalColor()
         XCTAssertTrue(proof.canPromote)
         XCTAssertFalse(proof.canInheritColor)
+        XCTAssertTrue(proof.canInheritFont)
     }
 
     func testInheritedColorKeyRejectsLookalikeOwnersAndUnknownPrivateLayouts() {
