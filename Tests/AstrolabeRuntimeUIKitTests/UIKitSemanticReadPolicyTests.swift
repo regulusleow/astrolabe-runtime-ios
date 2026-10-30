@@ -3,6 +3,17 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testEnvironmentColorBoxAllowsOnlyProvenPureColorProviders() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.SystemColorType>"))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isColorBox("Other.ColorBox<SwiftUI.ResolvedColorProvider>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<Other.ResolvedColorProvider>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.CustomColorProvider>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ShapeStyleBox<SwiftUI.LinearGradient>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>.Type"))
+    }
+
     func testExplicitFontPresenceBlocksInheritanceEvenWithoutProjectedFont() {
         var proof = SwiftUITextScopeProof()
         proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")

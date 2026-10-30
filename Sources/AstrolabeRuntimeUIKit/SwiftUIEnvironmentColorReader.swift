@@ -74,7 +74,7 @@ enum SwiftUIEnvironmentColorReader {
                   let styleStorage = field(style, "storage", depth: 7 + depth),
                   String(reflecting: type(of: styleStorage)) == "SwiftUI.AnyShapeStyle.Storage",
                   let value = field(styleStorage, "box", depth: 8 + depth),
-                  String(reflecting: type(of: value)) == "SwiftUI.ColorBox<SwiftUI.SystemColorType>",
+                  SwiftUITextMetadataPolicy.isColorBox(String(reflecting: type(of: value))),
                   Mirror(reflecting: value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyColorBox" else { return nil }
             let box = value as AnyObject
             let color = unsafeBitCast(box, to: Color.self)

@@ -61,6 +61,11 @@ struct SwiftUITextScopeProof {
 
 /// iOS 27.0 type-only evidence: these exact metadata fields cannot add another original Text.
 enum SwiftUITextMetadataPolicy {
+    static func isColorBox(_ type: String) -> Bool {
+        type == "SwiftUI.ColorBox<SwiftUI.SystemColorType>" ||
+        type == "SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>"
+    }
+
     static func isForegroundStyleKey(_ type: String) -> Bool {
         isEnvironmentKey(type, name: "ForegroundStyleKey")
     }
