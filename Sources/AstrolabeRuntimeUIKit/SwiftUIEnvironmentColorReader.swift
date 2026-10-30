@@ -73,9 +73,28 @@ enum SwiftUIEnvironmentColorReader {
             guard let style,
                   let styleStorage = field(style, "storage", depth: 7 + depth),
                   String(reflecting: type(of: styleStorage)) == "SwiftUI.AnyShapeStyle.Storage",
-                  let value = field(styleStorage, "box", depth: 8 + depth),
-                  SwiftUITextMetadataPolicy.isColorBox(String(reflecting: type(of: value))),
-                  Mirror(reflecting: value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyColorBox" else { return nil }
+                  let value = field(styleStorage, "box", depth: 8 + depth) else { return nil }
+
+            // An opacity wrapper is accepted only when its entire bounded base chain is proven.
+            var currentProvider = value
+            var providerDepth = 8 + depth
+            var seenProviders = Set<ObjectIdentifier>()
+            for wrapper in 0...4 {
+                let providerType = String(reflecting: type(of: currentProvider))
+                guard SwiftUITextMetadataPolicy.isColorBox(providerType),
+                      Mirror(reflecting: currentProvider).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyColorBox",
+                      seenProviders.insert(ObjectIdentifier(currentProvider as AnyObject)).inserted else { return nil }
+                if providerType != "SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>" { break }
+                guard wrapper < 4 else { local.markTruncated(); return nil }
+                guard let opacityColor = field(currentProvider, "base", depth: providerDepth + 1),
+                      String(reflecting: type(of: opacityColor)) == "SwiftUI.Color.OpacityColor",
+                      let opacity = field(opacityColor, "opacity", depth: providerDepth + 2) as? Double,
+                      opacity.isFinite, (0...1).contains(opacity),
+                      let base = field(opacityColor, "base", depth: providerDepth + 2) as? Color,
+                      let provider = field(base, "provider", depth: providerDepth + 3) else { return nil }
+                currentProvider = provider
+                providerDepth += 3
+            }
             let box = value as AnyObject
             let color = unsafeBitCast(box, to: Color.self)
             guard let provider = field(color, "provider", depth: 9 + depth), (provider as AnyObject) === box,

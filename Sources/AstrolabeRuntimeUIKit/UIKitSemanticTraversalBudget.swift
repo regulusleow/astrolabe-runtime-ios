@@ -63,7 +63,8 @@ struct SwiftUITextScopeProof {
 enum SwiftUITextMetadataPolicy {
     static func isColorBox(_ type: String) -> Bool {
         type == "SwiftUI.ColorBox<SwiftUI.SystemColorType>" ||
-        type == "SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>"
+        type == "SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>" ||
+        type == "SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>"
     }
 
     static func isForegroundStyleKey(_ type: String) -> Bool {
