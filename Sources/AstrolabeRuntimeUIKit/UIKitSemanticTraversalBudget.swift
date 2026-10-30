@@ -67,6 +67,18 @@ enum SwiftUITextMetadataPolicy {
         type == "SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>"
     }
 
+    static func isTintKey(_ type: String) -> Bool {
+        isEnvironmentKey(type, name: "TintKey")
+    }
+
+    static func isTintStyleBox(_ type: String) -> Bool {
+        let prefix = "SwiftUI.(unknown context at $"
+        let suffix = ").ShapeStyleBox<SwiftUI.TintShapeStyle>"
+        guard type.hasPrefix(prefix), type.hasSuffix(suffix) else { return false }
+        let context = type.dropFirst(prefix.count).dropLast(suffix.count)
+        return !context.isEmpty && context.allSatisfy(\.isHexDigit)
+    }
+
     static func isForegroundStyleKey(_ type: String) -> Bool {
         isEnvironmentKey(type, name: "ForegroundStyleKey")
     }

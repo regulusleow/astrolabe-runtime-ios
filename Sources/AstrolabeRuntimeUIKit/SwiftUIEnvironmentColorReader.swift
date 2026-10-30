@@ -4,7 +4,7 @@ import Darwin
 import Foundation
 import SwiftUI
 
-/// The iOS 27.0 singleton color/font chain verified in the standalone probe.
+/// The iOS 27.0 singleton color/font/tint chain verified in the standalone probe.
 @available(iOS 17.0, *)
 @MainActor
 enum SwiftUIEnvironmentColorReader {
@@ -23,93 +23,108 @@ enum SwiftUIEnvironmentColorReader {
             return matches.count == 1 ? matches[0].value : nil
         }
 
-        guard let plist = field(environment, "_plist", depth: 1),
-              String(reflecting: type(of: plist)) == "SwiftUI.PropertyList",
-              let elements = field(plist, "elements", depth: 2),
-              let head = field(elements, "some", depth: 3) else { return nil }
-        var element: Any = head
-        var path = "environment/_plist/elements/some"
-        var seen = Set<ObjectIdentifier>()
+        func styleBox(tint: Bool) -> (value: Any, path: String, depth: Int)? {
+            guard let plist = field(environment, "_plist", depth: 1),
+                  String(reflecting: type(of: plist)) == "SwiftUI.PropertyList",
+                  let elements = field(plist, "elements", depth: 2),
+                  let head = field(elements, "some", depth: 3) else { return nil }
+            var element: Any = head
+            var path = "environment/_plist/elements/some"
+            var seen = Set<ObjectIdentifier>()
 
-        // shortcut: only singleton FontKey/after hops are proven; reject merged or unknown layouts.
-        for hop in 0..<8 {
-            let depth = hop * 2
-            guard local.consume(depth: 3 + depth), budget.consume(depth: 3 + depth),
-                  String(reflecting: type(of: element)) == "SwiftUI.PropertyList.Element",
-                  seen.insert(ObjectIdentifier(element as AnyObject)).inserted,
-                  let before = field(element, "before", depth: 4 + depth),
-                  Mirror(reflecting: before).displayStyle == .optional,
-                  Mirror(reflecting: before).children.isEmpty,
-                  let storage = field(element, "storage", depth: 4 + depth),
-                  let count = field(storage, "_count", depth: 5 + depth) as? UInt32, count == 1,
-                  let next = field(storage, "nextOffset", depth: 5 + depth) as? UInt16, next == 32,
-                  let capacity = field(storage, "_capacity", depth: 5 + depth) as? UInt32, capacity >= UInt32(next),
-                  let last = field(storage, "lastOffset", depth: 5 + depth) as? UInt16, last == 0,
-                  let mask = field(storage, "alignMask", depth: 5 + depth) as? UInt16, mask == 7,
-                  let buffer = field(storage, "buf", depth: 5 + depth) as? UnsafeMutableRawPointer,
-                  UInt(bitPattern: buffer) % 8 == 0, UInt(bitPattern: buffer) <= UInt.max - 32,
-                  local.consume(depth: 6 + depth), budget.consume(depth: 6 + depth),
-                  let words = copyWords(at: UInt(bitPattern: buffer), count: 3),
-                  words[0] != 0, words[0] % 8 == 0,
-                  copyWords(at: words[0], count: 1) != nil else { return nil }
+            // shortcut: only singleton Font/ForegroundStyle/Tint after hops are proven; reject other layouts until verified.
+            for hop in 0..<8 {
+                let depth = hop * 2
+                guard local.consume(depth: 3 + depth), budget.consume(depth: 3 + depth),
+                      String(reflecting: type(of: element)) == "SwiftUI.PropertyList.Element",
+                      seen.insert(ObjectIdentifier(element as AnyObject)).inserted,
+                      let before = field(element, "before", depth: 4 + depth),
+                      Mirror(reflecting: before).displayStyle == .optional,
+                      Mirror(reflecting: before).children.isEmpty,
+                      let storage = field(element, "storage", depth: 4 + depth),
+                      let count = field(storage, "_count", depth: 5 + depth) as? UInt32, count == 1,
+                      let next = field(storage, "nextOffset", depth: 5 + depth) as? UInt16, next == 32,
+                      let capacity = field(storage, "_capacity", depth: 5 + depth) as? UInt32, capacity >= UInt32(next),
+                      let last = field(storage, "lastOffset", depth: 5 + depth) as? UInt16, last == 0,
+                      let mask = field(storage, "alignMask", depth: 5 + depth) as? UInt16, mask == 7,
+                      let buffer = field(storage, "buf", depth: 5 + depth) as? UnsafeMutableRawPointer,
+                      UInt(bitPattern: buffer) % 8 == 0, UInt(bitPattern: buffer) <= UInt.max - 32,
+                      local.consume(depth: 6 + depth), budget.consume(depth: 6 + depth),
+                      let words = copyWords(at: UInt(bitPattern: buffer), count: 3),
+                      words[0] != 0, words[0] % 8 == 0,
+                      copyWords(at: words[0], count: 1) != nil else { return nil }
 
-            // Metadata comes from the retained SwiftUI-owned singleton, not an arbitrary heap scan.
-            let key = String(reflecting: unsafeBitCast(words[0], to: Any.Type.self))
-            if SwiftUITextMetadataPolicy.isFontKey(key) {
-                guard MemoryLayout<Font?>.size == 8,
-                      words[2] == unsafeBitCast(Optional<Font>.self, to: UInt.self),
-                      let after = field(element, "after", depth: 4 + depth),
+                // Metadata comes from the retained SwiftUI-owned singleton, not an arbitrary heap scan.
+                let key = String(reflecting: unsafeBitCast(words[0], to: Any.Type.self))
+                if SwiftUITextMetadataPolicy.isFontKey(key) {
+                    guard MemoryLayout<Font?>.size == 8,
+                          words[2] == unsafeBitCast(Optional<Font>.self, to: UInt.self) else { return nil }
+                } else {
+                    let isForeground = SwiftUITextMetadataPolicy.isForegroundStyleKey(key)
+                    let isTint = SwiftUITextMetadataPolicy.isTintKey(key)
+                    guard isForeground || isTint,
+                          words[2] == unsafeBitCast(Optional<AnyShapeStyle>.self, to: UInt.self) else { return nil }
+                    if tint ? isTint : isForeground {
+                        // The first matching entry is final, including nil or unsupported styles.
+                        guard let payload = copyWords(at: UInt(bitPattern: buffer) + 24, count: 1) else { return nil }
+                        let style: AnyShapeStyle? = payload.withUnsafeBytes { $0.baseAddress!.load(as: Optional<AnyShapeStyle>.self) }
+                        guard let style,
+                              let storage = field(style, "storage", depth: 7 + depth),
+                              String(reflecting: type(of: storage)) == "SwiftUI.AnyShapeStyle.Storage",
+                              let value = field(storage, "box", depth: 8 + depth) else { return nil }
+                        return (value, path + "/storage/0/" + (tint ? "TintKey" : "ForegroundStyleKey") + "/value/storage/box", 8 + depth)
+                    }
+                }
+                guard let after = field(element, "after", depth: 4 + depth),
                       Mirror(reflecting: after).displayStyle == .optional,
                       let nextElement = field(after, "some", depth: 5 + depth) else { return nil }
                 element = nextElement
                 path += "/after/some"
-                continue
             }
-            // The first foreground entry is final even when its style is unsupported or nil.
-            guard SwiftUITextMetadataPolicy.isForegroundStyleKey(key),
-                  words[2] == unsafeBitCast(Optional<AnyShapeStyle>.self, to: UInt.self),
-                  let payload = copyWords(at: UInt(bitPattern: buffer) + 24, count: 1) else { return nil }
-            let style: AnyShapeStyle? = payload.withUnsafeBytes { $0.baseAddress!.load(as: Optional<AnyShapeStyle>.self) }
-            guard let style,
-                  let styleStorage = field(style, "storage", depth: 7 + depth),
-                  String(reflecting: type(of: styleStorage)) == "SwiftUI.AnyShapeStyle.Storage",
-                  let value = field(styleStorage, "box", depth: 8 + depth) else { return nil }
-
-            // An opacity wrapper is accepted only when its entire bounded base chain is proven.
-            var currentProvider = value
-            var providerDepth = 8 + depth
-            var seenProviders = Set<ObjectIdentifier>()
-            for wrapper in 0...4 {
-                let providerType = String(reflecting: type(of: currentProvider))
-                guard SwiftUITextMetadataPolicy.isColorBox(providerType),
-                      Mirror(reflecting: currentProvider).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyColorBox",
-                      seenProviders.insert(ObjectIdentifier(currentProvider as AnyObject)).inserted else { return nil }
-                if providerType != "SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>" { break }
-                guard wrapper < 4 else { local.markTruncated(); return nil }
-                guard let opacityColor = field(currentProvider, "base", depth: providerDepth + 1),
-                      String(reflecting: type(of: opacityColor)) == "SwiftUI.Color.OpacityColor",
-                      let opacity = field(opacityColor, "opacity", depth: providerDepth + 2) as? Double,
-                      opacity.isFinite, (0...1).contains(opacity),
-                      let base = field(opacityColor, "base", depth: providerDepth + 2) as? Color,
-                      let provider = field(base, "provider", depth: providerDepth + 3) else { return nil }
-                currentProvider = provider
-                providerDepth += 3
-            }
-            let box = value as AnyObject
-            let color = unsafeBitCast(box, to: Color.self)
-            guard let provider = field(color, "provider", depth: 9 + depth), (provider as AnyObject) === box,
-                  local.consume(depth: 10 + depth), budget.consume(depth: 10 + depth) else { return nil }
-            let resolved = color.resolve(in: environment)
-            withExtendedLifetime(environment) {}
-            withExtendedLifetime(box) {}
-            let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
-            guard rgba.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
-            let attribute = RuntimeAttribute(identifier: try .init(rawValue: "common.text.color"),
-                value: .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))
-            return try RuntimeSemanticTextField(path: path + "/storage/0/ForegroundStyleKey/value/storage/box", attribute: attribute)
+            local.markTruncated()
+            return nil
         }
-        local.markTruncated()
-        return nil
+
+        guard var selected = styleBox(tint: false) else { return nil }
+        if SwiftUITextMetadataPolicy.isTintStyleBox(String(reflecting: type(of: selected.value))) {
+            guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
+                  field(selected.value, "base", depth: selected.depth + 1) is TintShapeStyle,
+                  let tint = styleBox(tint: true) else { return nil }
+            selected = tint
+        }
+        let value = selected.value
+        // An opacity wrapper is accepted only when its entire bounded base chain is proven.
+        var currentProvider = value
+        var providerDepth = selected.depth
+        var seenProviders = Set<ObjectIdentifier>()
+        for wrapper in 0...4 {
+            let providerType = String(reflecting: type(of: currentProvider))
+            guard SwiftUITextMetadataPolicy.isColorBox(providerType),
+                  Mirror(reflecting: currentProvider).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyColorBox",
+                  seenProviders.insert(ObjectIdentifier(currentProvider as AnyObject)).inserted else { return nil }
+            if providerType != "SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>" { break }
+            guard wrapper < 4 else { local.markTruncated(); return nil }
+            guard let opacityColor = field(currentProvider, "base", depth: providerDepth + 1),
+                  String(reflecting: type(of: opacityColor)) == "SwiftUI.Color.OpacityColor",
+                  let opacity = field(opacityColor, "opacity", depth: providerDepth + 2) as? Double,
+                  opacity.isFinite, (0...1).contains(opacity),
+                  let base = field(opacityColor, "base", depth: providerDepth + 2) as? Color,
+                  let provider = field(base, "provider", depth: providerDepth + 3) else { return nil }
+            currentProvider = provider
+            providerDepth += 3
+        }
+        let box = value as AnyObject
+        let color = unsafeBitCast(box, to: Color.self)
+        guard let provider = field(color, "provider", depth: selected.depth + 1), (provider as AnyObject) === box,
+              local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2) else { return nil }
+        let resolved = color.resolve(in: environment)
+        withExtendedLifetime(environment) {}
+        withExtendedLifetime(box) {}
+        let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
+        guard rgba.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
+        let attribute = RuntimeAttribute(identifier: try .init(rawValue: "common.text.color"),
+            value: .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))
+        return try RuntimeSemanticTextField(path: selected.path, attribute: attribute)
     }
 
     private static func copyWords(at address: UInt, count: Int) -> [UInt]? {

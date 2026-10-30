@@ -17,6 +17,24 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
         XCTAssertFalse(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>.Type"))
     }
 
+    func testTintEnvironmentKeyRequiresExactOwnerAndPrivateLayout() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isTintKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1c7b6a3d4).TintKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintKey("Other.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).TintKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintKey("SwiftUI.EnvironmentPropertyKey<Other.(unknown context at $1).TintKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $notHex).TintKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).ForegroundStyleKey>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintKey("SwiftUI.EnvironmentPropertyKey<SwiftUI.(unknown context at $1).TintKey>.Type"))
+    }
+
+    func testTintStyleBoxRequiresExactOwnerAndPureTintType() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isTintStyleBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.TintShapeStyle>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintStyleBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.TintShapeStyle>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintStyleBox("SwiftUI.(unknown context at $1).ShapeStyleBox<Other.TintShapeStyle>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintStyleBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.TintShapeStyle>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintStyleBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyle>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isTintStyleBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.TintShapeStyle>.Type"))
+    }
+
     func testExplicitFontPresenceBlocksInheritanceEvenWithoutProjectedFont() {
         var proof = SwiftUITextScopeProof()
         proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")
