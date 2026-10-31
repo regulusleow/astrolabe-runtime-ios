@@ -67,15 +67,23 @@ enum SwiftUITextMetadataPolicy {
         type == "SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>"
     }
 
-    static func isSecondaryOffsetBox(_ type: String) -> Bool {
+    static func isDefaultHierarchyOffsetBox(_ type: String) -> Bool {
+        isShapeStyleBox(type, style: "SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>")
+    }
+
+    static func isSupportedHierarchyLevel(_ level: Int) -> Bool {
+        level == 1 || level == 2
+    }
+
+    static func isHierarchyOffsetBox(_ type: String) -> Bool {
         isShapeStyleBox(type, style: "SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>")
     }
 
-    static func isSecondaryModifierBox(_ type: String) -> Bool {
+    static func isHierarchyModifierBox(_ type: String) -> Bool {
         isShapeStyleBox(type, style: "SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>")
     }
 
-    static func isSecondaryPackBox(_ type: String) -> Bool {
+    static func isHierarchyPackBox(_ type: String) -> Bool {
         isShapeStyleBox(type, style: "SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>") ||
         isShapeStyleBox(type, style: "SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>")
     }

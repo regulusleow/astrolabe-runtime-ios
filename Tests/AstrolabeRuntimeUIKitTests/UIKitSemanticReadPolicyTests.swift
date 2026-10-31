@@ -35,31 +35,49 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
         XCTAssertFalse(SwiftUITextMetadataPolicy.isTintStyleBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.TintShapeStyle>.Type"))
     }
 
-    func testSecondaryOffsetBoxRequiresExactOwnerAndErasedStyleBase() {
-        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<Other.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>.Type"))
+    func testHierarchyOffsetBoxRequiresExactOwnerAndErasedStyleBase() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isHierarchyOffsetBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyOffsetBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<Other.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyOffsetBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>.Type"))
     }
 
-    func testSecondaryModifierBoxRequiresExactColorBase() {
-        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<Other.Color>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>.Type"))
+    func testHierarchyModifierBoxRequiresExactColorBase() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isHierarchyModifierBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyModifierBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<Other.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyModifierBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>.Type"))
     }
 
-    func testSecondaryPackBoxRequiresTwoOrThreeErasedStyles() {
-        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
-        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, Other.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>.Type"))
+    func testHierarchyPackBoxRequiresTwoOrThreeErasedStyles() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isHierarchyPackBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isHierarchyPackBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyPackBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyPackBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, Other.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyPackBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isHierarchyPackBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>.Type"))
+    }
+
+    func testDefaultHierarchyBoxRequiresExactSystemColorsBase() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<Other.SystemColorsStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.ForegroundMaterialStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>>.Type"))
+    }
+
+    func testHierarchyLevelsRejectUnprovenRanges() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(1))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(2))
+        for level in [Int.min, -1, 0, 3, Int.max] {
+            XCTAssertFalse(SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(level))
+        }
     }
 
     func testExplicitFontPresenceBlocksInheritanceEvenWithoutProjectedFont() {

@@ -23,6 +23,14 @@ enum SwiftUIEnvironmentColorReader {
             return matches.count == 1 ? matches[0].value : nil
         }
 
+        func resolvedField(_ resolved: Color.Resolved, path: String) throws -> RuntimeSemanticTextField? {
+            let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
+            guard rgba.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
+            let attribute = RuntimeAttribute(identifier: try .init(rawValue: "common.text.color"),
+                value: .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))
+            return try RuntimeSemanticTextField(path: path, attribute: attribute)
+        }
+
         func unboxStyle(_ style: AnyShapeStyle, path: String, depth: Int) -> (value: Any, path: String, depth: Int)? {
             guard let storage = field(style, "storage", depth: depth + 1),
                   String(reflecting: type(of: storage)) == "SwiftUI.AnyShapeStyle.Storage",
@@ -90,40 +98,63 @@ enum SwiftUIEnvironmentColorReader {
         }
 
         guard var selected = styleBox(tint: false) else { return nil }
-        var secondaryPath: String?
+        var hierarchyPath: String?
+        var hierarchyLevel = 0
         let selectedType = String(reflecting: type(of: selected.value))
-        if SwiftUITextMetadataPolicy.isSecondaryOffsetBox(selectedType) {
+        if SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox(selectedType) {
+            let depth = selected.depth
+            guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
+                  let offset = field(selected.value, "base", depth: depth + 1),
+                  String(reflecting: type(of: offset)) == "SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>",
+                  let level = field(offset, "offset", depth: depth + 2) as? Int,
+                  SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(level),
+                  let base = field(offset, "base", depth: depth + 2),
+                  String(reflecting: type(of: base)) == "SwiftUI.SystemColorsStyle",
+                  local.consume(depth: depth + 3), budget.consume(depth: depth + 3),
+                  Mirror(reflecting: base).children.isEmpty,
+                  local.consume(depth: depth + 4), budget.consume(depth: depth + 4),
+                  let resolved = SwiftUIHierarchicalColorResolver.defaultColor(level: level, environment: environment) else { return nil }
+            return try resolvedField(resolved, path: selected.path)
+        } else if SwiftUITextMetadataPolicy.isHierarchyOffsetBox(selectedType) {
             let path = selected.path
             let depth = selected.depth
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
                   let offset = field(selected.value, "base", depth: depth + 1),
                   String(reflecting: type(of: offset)) == "SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>",
-                  field(offset, "offset", depth: depth + 2) as? Int == 1,
+                  let level = field(offset, "offset", depth: depth + 2) as? Int,
+                  SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(level),
                   let base = field(offset, "base", depth: depth + 2) as? AnyShapeStyle,
                   let box = unboxStyle(base, path: path + "/base/base", depth: depth + 2) else { return nil }
             selected = box
-            secondaryPath = path
-            if SwiftUITextMetadataPolicy.isSecondaryPackBox(String(reflecting: type(of: selected.value))) {
+            hierarchyPath = path
+            hierarchyLevel = level
+            if SwiftUITextMetadataPolicy.isHierarchyPackBox(String(reflecting: type(of: selected.value))) {
                 guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
                       let pack = field(selected.value, "base", depth: selected.depth + 1),
                       ["SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>",
                        "SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>"].contains(String(reflecting: type(of: pack))),
-                      let secondary = field(pack, "secondary", depth: selected.depth + 2) as? AnyShapeStyle,
-                      let box = unboxStyle(secondary, path: selected.path + "/base/secondary", depth: selected.depth + 2) else { return nil }
+                      local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2) else { return nil }
+                // A pair reuses its secondary at level2; a triple has an explicit tertiary.
+                let name = level == 2 && String(reflecting: type(of: pack)).hasPrefix("SwiftUI.ShapeStyleTriple<") ? "tertiary" : "secondary"
+                guard let style = field(pack, name, depth: selected.depth + 2) as? AnyShapeStyle,
+                      let box = unboxStyle(style, path: selected.path + "/base/" + name, depth: selected.depth + 2) else { return nil }
                 selected = box
-                secondaryPath = nil
+                hierarchyPath = nil
+                hierarchyLevel = 0
             }
-        } else if SwiftUITextMetadataPolicy.isSecondaryModifierBox(selectedType) {
+        } else if SwiftUITextMetadataPolicy.isHierarchyModifierBox(selectedType) {
             let path = selected.path
             let depth = selected.depth
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
                   let modifier = field(selected.value, "base", depth: depth + 1),
                   String(reflecting: type(of: modifier)) == "SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>",
-                  field(modifier, "level", depth: depth + 2) as? Int == 1,
+                  let level = field(modifier, "level", depth: depth + 2) as? Int,
+                  SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(level),
                   let color = field(modifier, "base", depth: depth + 2) as? Color,
                   let provider = field(color, "provider", depth: depth + 3) else { return nil }
             selected = (provider, path + "/base/base/provider", depth + 3)
-            secondaryPath = path
+            hierarchyPath = path
+            hierarchyLevel = level
         }
         if SwiftUITextMetadataPolicy.isTintStyleBox(String(reflecting: type(of: selected.value))) {
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
@@ -157,17 +188,17 @@ enum SwiftUIEnvironmentColorReader {
         guard let provider = field(color, "provider", depth: selected.depth + 1), (provider as AnyObject) === box,
               local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2) else { return nil }
         var resolved = color.resolve(in: environment)
-        if secondaryPath != nil {
+        if hierarchyPath != nil {
             let baseRGBA = [resolved.red, resolved.green, resolved.blue, resolved.opacity]
             guard baseRGBA.allSatisfy({ $0.isFinite && (0...1).contains($0) }),
                   local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2),
-                  let secondary = SwiftUISecondaryColorResolver.apply(to: color),
+                  let secondary = SwiftUIHierarchicalColorResolver.apply(to: color, level: hierarchyLevel),
                   let provider = field(secondary, "provider", depth: selected.depth + 1),
                   String(reflecting: type(of: provider)) == "SwiftUI.ColorBox<SwiftUI.Color.HierarchicalOpacityColor>",
                   Mirror(reflecting: provider).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyColorBox",
                   let payload = field(provider, "base", depth: selected.depth + 2),
                   String(reflecting: type(of: payload)) == "SwiftUI.Color.HierarchicalOpacityColor",
-                  field(payload, "level", depth: selected.depth + 3) as? Int == 1,
+                  field(payload, "level", depth: selected.depth + 3) as? Int == hierarchyLevel,
                   let original = field(payload, "base", depth: selected.depth + 3) as? Color,
                   let originalProvider = field(original, "provider", depth: selected.depth + 4),
                   (originalProvider as AnyObject) === box,
@@ -176,11 +207,7 @@ enum SwiftUIEnvironmentColorReader {
         }
         withExtendedLifetime(environment) {}
         withExtendedLifetime(box) {}
-        let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
-        guard rgba.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
-        let attribute = RuntimeAttribute(identifier: try .init(rawValue: "common.text.color"),
-            value: .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))
-        return try RuntimeSemanticTextField(path: secondaryPath ?? selected.path, attribute: attribute)
+        return try resolvedField(resolved, path: hierarchyPath ?? selected.path)
     }
 
     private static func copyWords(at address: UInt, count: Int) -> [UInt]? {
