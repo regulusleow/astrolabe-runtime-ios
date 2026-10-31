@@ -8,27 +8,35 @@ import UIKit
 @available(iOS 17.0, *)
 @MainActor
 enum SwiftUIHierarchicalColorResolver {
-    static func defaultColor(level: Int, environment: EnvironmentValues) -> Color.Resolved? {
-        // shortcut: the system-palette mapping is proven on the same simulator scope; validate other targets first.
-        #if targetEnvironment(simulator) && arch(arm64)
+    /// ABI and palette checks also require the exact validated architecture and native iOS environment.
+    private static var isSupportedPlatform: Bool {
+        #if arch(arm64)
         let version = ProcessInfo.processInfo.operatingSystemVersion
-        guard version.majorVersion == 27, version.minorVersion == 0,
+        #if targetEnvironment(simulator)
+        let simulator = true
+        #else
+        let simulator = false
+        #endif
+        return SwiftUITextMetadataPolicy.supportsCurrentLayout &&
+            SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: version.majorVersion,
+                minor: version.minorVersion, simulator: simulator)
+        #else
+        return false
+        #endif
+    }
+
+    static func defaultColor(level: Int, environment: EnvironmentValues) -> Color.Resolved? {
+        guard isSupportedPlatform,
               SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(level),
               environment.backgroundMaterial == nil else { return nil }
         let color = level == 1 ? Color.secondary : Color(uiColor: .tertiaryLabel)
         return color.resolve(in: environment)
-        #else
-        return nil
-        #endif
     }
 
     static func apply(to color: Color, level: Int) -> Color? {
-        // shortcut: this ABI is proven only on iOS 27.0 arm64 simulators; verify before widening the gate.
-        #if targetEnvironment(simulator) && arch(arm64)
         typealias Apply = @convention(thin) (Int, Color) -> Color
-        let version = ProcessInfo.processInfo.operatingSystemVersion
         let symbol = "$s7SwiftUI5ColorV30multiplyingHierarchicalOpacity2atACSi_tF"
-        guard version.majorVersion == 27, version.minorVersion == 0,
+        guard isSupportedPlatform,
               SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(level),
               MemoryLayout<Int>.size == 8, MemoryLayout<Color>.size == 8,
               MemoryLayout<Apply>.size == 8,
@@ -43,9 +51,6 @@ enum SwiftUIHierarchicalColorResolver {
         // The observed frozen Color ABI passes the level and Color provider in x0/x1.
         let apply = unsafeBitCast(pointer, to: Apply.self)
         return apply(level, color)
-        #else
-        return nil
-        #endif
     }
 }
 #endif

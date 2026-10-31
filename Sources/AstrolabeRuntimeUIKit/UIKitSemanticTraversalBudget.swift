@@ -76,6 +76,11 @@ enum SwiftUITextMetadataPolicy {
         major == 27 && (minor == 0 || (minor == 2 && physicalDevice))
     }
 
+    /// shortcut: hierarchy/palette evidence covers these targets only; validate others before widening.
+    static func supportsHierarchyLayout(major: Int, minor: Int, simulator: Bool) -> Bool {
+        major == 27 && ((minor == 0 && simulator) || (minor == 2 && !simulator))
+    }
+
     static func isColorBox(_ type: String) -> Bool {
         type == "SwiftUI.ColorBox<SwiftUI.SystemColorType>" ||
         type == "SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>" ||

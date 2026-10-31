@@ -10,7 +10,6 @@ import SwiftUI
 enum SwiftUIEnvironmentColorReader {
     static func read(environment: EnvironmentValues, local: inout UIKitSemanticTraversalBudget,
                      budget: inout UIKitSemanticTraversalBudget) throws -> RuntimeSemanticTextField? {
-        let version = ProcessInfo.processInfo.operatingSystemVersion
         guard SwiftUITextMetadataPolicy.supportsCurrentLayout,
               MemoryLayout<UInt>.size == 8, MemoryLayout<AnyShapeStyle>.size == 8,
               MemoryLayout<Color>.size == MemoryLayout<AnyObject>.size else { return nil }
@@ -101,8 +100,6 @@ enum SwiftUIEnvironmentColorReader {
         var hierarchyPath: String?
         var hierarchyLevel = 0
         let selectedType = String(reflecting: type(of: selected.value))
-        // iOS 27.2 hardware proves pure Color providers, not tint or hierarchical style layouts.
-        guard version.minorVersion == 0 || SwiftUITextMetadataPolicy.isColorBox(selectedType) else { return nil }
         if SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox(selectedType) {
             let depth = selected.depth
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",

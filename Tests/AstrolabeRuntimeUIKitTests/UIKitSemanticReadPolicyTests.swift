@@ -3,6 +3,18 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testHierarchyLayoutRejectsUnverifiedOSAndDeviceCombinations() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 0, simulator: true))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 2, simulator: false))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 0, simulator: false))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 2, simulator: true))
+        for simulator in [false, true] {
+            for (major, minor) in [(26, 0), (27, 1), (27, 3), (28, 0)] {
+                XCTAssertFalse(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: major, minor: minor, simulator: simulator))
+            }
+        }
+    }
+
     func testTextLayoutAcceptsOnlyVerifiedVersionsAndDeviceKinds() {
         for physical in [false, true] {
             XCTAssertTrue(SwiftUITextMetadataPolicy.supportsLayout(major: 27, minor: 0, physicalDevice: physical))
