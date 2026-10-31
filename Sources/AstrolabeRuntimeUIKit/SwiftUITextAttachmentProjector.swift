@@ -26,8 +26,7 @@ enum SwiftUITextAttachmentProjector {
         var outputStopped = false
         var pending: [(value: Any, path: String, depth: Int, ancestors: Set<ObjectIdentifier>)] = []
         guard NSStringFromClass(type(of: node)) == "SwiftUI.AccessibilityNode",
-              ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27,
-              ProcessInfo.processInfo.operatingSystemVersion.minorVersion == 0 else {
+              SwiftUITextMetadataPolicy.supportsCurrentLayout else {
             return Projection(candidates: [], canonicalAttributes: [], issues: [semanticIssue("unsupportedLayout")], truncated: false)
         }
         guard local.consume(depth: 0), budget.consume(depth: 0) else {

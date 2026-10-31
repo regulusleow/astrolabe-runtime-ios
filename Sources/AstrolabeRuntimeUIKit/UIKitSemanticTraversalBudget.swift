@@ -1,4 +1,5 @@
 import AstrolabeProtocol
+import Foundation
 
 /// Counts actual visits; an exact boundary is truncated only when more work is attempted.
 struct UIKitSemanticTraversalBudget {
@@ -59,8 +60,22 @@ struct SwiftUITextScopeProof {
     }
 }
 
-/// iOS 27.0 type-only evidence: these exact metadata fields cannot add another original Text.
+/// Verified Text metadata layouts; unknown versions and types fail closed.
 enum SwiftUITextMetadataPolicy {
+    static var supportsCurrentLayout: Bool {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        #if os(iOS) && arch(arm64) && !targetEnvironment(simulator) && !targetEnvironment(macCatalyst)
+        let physicalDevice = !ProcessInfo.processInfo.isiOSAppOnMac
+        #else
+        let physicalDevice = false
+        #endif
+        return supportsLayout(major: version.majorVersion, minor: version.minorVersion, physicalDevice: physicalDevice)
+    }
+
+    static func supportsLayout(major: Int, minor: Int, physicalDevice: Bool) -> Bool {
+        major == 27 && (minor == 0 || (minor == 2 && physicalDevice))
+    }
+
     static func isColorBox(_ type: String) -> Bool {
         type == "SwiftUI.ColorBox<SwiftUI.SystemColorType>" ||
         type == "SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>" ||

@@ -3,6 +3,17 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testTextLayoutAcceptsOnlyVerifiedVersionsAndDeviceKinds() {
+        for physical in [false, true] {
+            XCTAssertTrue(SwiftUITextMetadataPolicy.supportsLayout(major: 27, minor: 0, physicalDevice: physical))
+            for (major, minor) in [(26, 2), (27, 1), (27, 3), (28, 0)] {
+                XCTAssertFalse(SwiftUITextMetadataPolicy.supportsLayout(major: major, minor: minor, physicalDevice: physical))
+            }
+        }
+        XCTAssertTrue(SwiftUITextMetadataPolicy.supportsLayout(major: 27, minor: 2, physicalDevice: true))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.supportsLayout(major: 27, minor: 2, physicalDevice: false))
+    }
+
     func testEnvironmentColorBoxAllowsOnlyProvenPureColorProviders() {
         XCTAssertTrue(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.SystemColorType>"))
         XCTAssertTrue(SwiftUITextMetadataPolicy.isColorBox("SwiftUI.ColorBox<SwiftUI.ResolvedColorProvider>"))
