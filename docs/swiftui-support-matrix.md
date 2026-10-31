@@ -58,7 +58,21 @@ byte-identical screenshot control. Earlier reports cover
 [secondary](2026-10-31-swiftui-inherited-secondary.md) increments. Their remaining-work
 sections describe their historical baseline; this matrix is the current scope.
 
-The next gate is four-repository integration and release validation: real
-devices, mixed-device discovery, performance/budget behavior, privacy and
-dependency security review. Expanding the unsupported style list is separate
-feature work, not a prerequisite silently added to that gate.
+The integration gate covers iOS Runtime, Host and Protocol: real devices,
+simultaneous simulator/USB discovery, performance/budget behavior, privacy and
+dependency security review. Android Runtime development and instrumentation are
+outside this SwiftUI phase.
+
+On 2026-10-31, an iPhone 16 Pro Max running iOS 27.2 (24B119) passed Runtime
+discovery, UIKit hierarchy/detail inspection, device screenshot capture,
+cross-device snapshot isolation and repeated frozen semantic-detail reads. A
+filled secure UIKit input omitted its text attribute and synthetic value while
+an ordinary UILabel retained its verified font and color. This does not widen
+the private SwiftUI adapter gates: the ordinary Demo's SwiftUI body text was not
+recovered on that device, and a missing semantic style returned unableToVerify.
+An accessibility capture marked complete describes its source traversal, not
+complete SwiftUI text/style coverage.
+
+Hardware SwiftUI coverage for a claimed OS, longer performance/memory runs and
+installation/upgrade/release validation remain explicit release gates. Expanding
+the unsupported style list is separate feature work.
