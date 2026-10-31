@@ -153,7 +153,13 @@ struct UIKitSemanticAccessibilityCollector {
                 semanticContext: try RuntimeSemanticDetailContext(snapshotID: snapshotID, capturedAtUnixTime: capturedAt,
                     source: semanticName("ios.accessibility"), availability: projectionIssues.isEmpty ? .complete : (sections.isEmpty && candidates.isEmpty ? .unavailable : .partial),
                     issues: projectionIssues, wasTruncated: projectionTruncated, textCandidates: candidates))
-            let runtimeType = RuntimeType(name: String(reflecting: type(of: object)), ancestors: [])
+            let reflectedTypeName = String(reflecting: type(of: object))
+            let typeName = UIKitSemanticAccessibilityFacts.runtimeTypeName(reflectedTypeName)
+            if typeName != reflectedTypeName {
+                issues.append(semanticIssue("typeNameTruncated"))
+                budget.markTruncated()
+            }
+            let runtimeType = RuntimeType(name: typeName, ancestors: [])
             let ownNode = try RuntimeSemanticNode(nodeID: nodeID, parentID: parent, siblingIndex: sibling, role: role,
                 runtimeType: runtimeType, accessibility: ax, frameInScreen: validFrame ? runtimeRect(frame, space: .screen) : nil,
                 availableDetailCategories: sections.map { semanticName($0.category.rawValue) }, children: [])

@@ -4,6 +4,18 @@ import XCTest
 
 /// Pure value projection; no UI object, application, or simulator is created.
 final class UIKitSemanticAccessibilityFactsTests: XCTestCase {
+    func testLongTypeNamesRemainInsideTheSemanticWireContract() throws {
+        for name in ["SwiftUI.AccessibilityNode", String(repeating: "T", count: 512),
+                     String(repeating: "类型", count: 300)] {
+            let bounded = UIKitSemanticAccessibilityFacts.runtimeTypeName(name)
+            XCTAssertEqual(bounded, String(name.prefix(512)))
+            let node = try RuntimeSemanticNode(nodeID: .init(rawValue: "semantic-1"), parentID: nil,
+                siblingIndex: 0, role: "container", runtimeType: .init(name: bounded, ancestors: []),
+                availableDetailCategories: [], children: [])
+            XCTAssertEqual(try JSONDecoder().decode(RuntimeSemanticNode.self, from: JSONEncoder().encode(node)), node)
+        }
+    }
+
     func testRolesUsePublicTraitsAndNativeEvidence() {
         let examples: [(traits: [String], native: String?, expected: String)] = [
             (["button"], nil, "button"),
