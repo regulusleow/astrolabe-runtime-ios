@@ -54,8 +54,8 @@ scan as a required release gate.
   alpha, border, corner, shadow, and identified Auto Layout constraint values.
 
 SwiftUI text inspection has a bounded, simulator-verified scope for fonts and
-foreground colors. See the [SwiftUI support matrix](docs/swiftui-support-matrix.md)
-for supported styles, platform gates and unresolved cases.
+foreground colors. Private environment-color adapters require iOS 27.0;
+hierarchical calculation additionally requires an arm64 simulator.
 
 Patches never modify source code, the App binary, application models, or
 persistent storage. They remain active across Host reconnections and are
