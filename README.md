@@ -3,7 +3,7 @@
 English | [简体中文](README.zh-CN.md)
 
 Astrolabe Runtime for iOS exposes UIKit and Core Animation inspection data to
-the Astrolabe Host during development. Linking the dynamic framework is the
+the Astrolabe Host so Agents can inspect UI in Debug builds. Linking the dynamic framework is the
 complete integration: the Runtime starts automatically when an eligible
 application process loads it.
 
@@ -24,9 +24,8 @@ Add the following package in Xcode:
 https://github.com/regulusleow/astrolabe-runtime-ios
 ```
 
-Link and embed the `AstrolabeRuntime` product only in application targets that
-are allowed to expose runtime inspection data, such as Debug and internal Beta
-targets. Existing integrations upgraded from the former static product must
+Link and embed the `AstrolabeRuntime` product only in Debug application targets.
+Existing integrations upgraded from the former static product must
 verify that the framework is configured as `Embed & Sign`.
 
 ## Integration
@@ -38,10 +37,8 @@ application launch, and keeps the same Runtime instance across foreground and
 background transitions.
 
 The Runtime does not inspect `DEBUG` or application configuration names.
-Linking and embedding the product enables it in any build configuration.
-Release and App Store targets must therefore remove `AstrolabeRuntime` from
-their dependency graph and final application bundle. Treat a final artifact
-scan as a required release gate.
+Linking and embedding the product enables it in any build configuration, so
+configure the dependency and embedding in your Debug target.
 
 ## Capabilities
 
@@ -54,13 +51,16 @@ scan as a required release gate.
   alpha, border, corner, shadow, and identified Auto Layout constraint values.
 
 SwiftUI text inspection has a bounded scope verified on iOS 27.0 simulators and
-iOS 27.2 arm64 devices. On 27.2, semantic capture prepares app-local accessibility
+iOS 27.2 arm64 devices. These are verification environments, not the package's
+minimum OS requirement. On these platforms, semantic capture prepares app-local accessibility
 metadata without changing accessibility settings or posting status notifications.
 Verified Text attachments expose fonts and explicit pure foreground colors;
 inherited pure colors also support verified singleton environment entries on these
-platforms, including color opacity and child overrides. Tint and hierarchical
-environment styles still require iOS 27.0; hierarchical calculation additionally
-requires an arm64 simulator. Unknown layouts remain unavailable.
+platforms, including color opacity and child overrides. Tint, secondary and
+tertiary styles are verified on iOS 27.0 arm64 simulators and iOS 27.2 arm64 devices,
+including default palettes in light/dark appearance and increased contrast.
+Unknown private layouts leave the affected attributes unavailable; UIKit and
+Core Animation inspection retain their own platform requirements.
 
 Patches never modify source code, the App binary, application models, or
 persistent storage. They remain active across Host reconnections and are
@@ -82,13 +82,13 @@ selection remain inside this repository.
 
 ## Development
 
-Run the macOS-compatible tests and Release build:
+Run the macOS-compatible tests and Debug build:
 
 ```bash
 npm ci
 npm test
 swift test --parallel
-swift build -c release --product AstrolabeRuntime
+swift build --product AstrolabeRuntime
 scripts/verify-auto-start-artifact.sh
 ```
 
@@ -104,10 +104,9 @@ xcodebuild \
 ## Security
 
 The Runtime listens only on a loopback TCP endpoint. USB transport also relies
-on host-device pairing enforced by usbmux. The Runtime has no internal build
-configuration gate: if its framework is present in a Release build, it will
-start automatically. Do not distribute builds containing the Runtime or
-sensitive runtime data.
+on host-device pairing enforced by usbmux. Runtime inspection data is intended
+for local Debug development. The application target controls whether the
+framework is linked and loaded.
 
 Temporary mutation is restricted to the Runtime-owned patch catalog. Arbitrary
 selectors, method invocation, and business actions are not exposed.
