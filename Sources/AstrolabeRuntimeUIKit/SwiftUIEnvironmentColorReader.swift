@@ -23,6 +23,13 @@ enum SwiftUIEnvironmentColorReader {
             return matches.count == 1 ? matches[0].value : nil
         }
 
+        func unboxStyle(_ style: AnyShapeStyle, path: String, depth: Int) -> (value: Any, path: String, depth: Int)? {
+            guard let storage = field(style, "storage", depth: depth + 1),
+                  String(reflecting: type(of: storage)) == "SwiftUI.AnyShapeStyle.Storage",
+                  let value = field(storage, "box", depth: depth + 2) else { return nil }
+            return (value, path + "/storage/box", depth + 2)
+        }
+
         func styleBox(tint: Bool) -> (value: Any, path: String, depth: Int)? {
             guard let plist = field(environment, "_plist", depth: 1),
                   String(reflecting: type(of: plist)) == "SwiftUI.PropertyList",
@@ -68,11 +75,8 @@ enum SwiftUIEnvironmentColorReader {
                         // The first matching entry is final, including nil or unsupported styles.
                         guard let payload = copyWords(at: UInt(bitPattern: buffer) + 24, count: 1) else { return nil }
                         let style: AnyShapeStyle? = payload.withUnsafeBytes { $0.baseAddress!.load(as: Optional<AnyShapeStyle>.self) }
-                        guard let style,
-                              let storage = field(style, "storage", depth: 7 + depth),
-                              String(reflecting: type(of: storage)) == "SwiftUI.AnyShapeStyle.Storage",
-                              let value = field(storage, "box", depth: 8 + depth) else { return nil }
-                        return (value, path + "/storage/0/" + (tint ? "TintKey" : "ForegroundStyleKey") + "/value/storage/box", 8 + depth)
+                        guard let style else { return nil }
+                        return unboxStyle(style, path: path + "/storage/0/" + (tint ? "TintKey" : "ForegroundStyleKey") + "/value", depth: 6 + depth)
                     }
                 }
                 guard let after = field(element, "after", depth: 4 + depth),
@@ -86,6 +90,41 @@ enum SwiftUIEnvironmentColorReader {
         }
 
         guard var selected = styleBox(tint: false) else { return nil }
+        var secondaryPath: String?
+        let selectedType = String(reflecting: type(of: selected.value))
+        if SwiftUITextMetadataPolicy.isSecondaryOffsetBox(selectedType) {
+            let path = selected.path
+            let depth = selected.depth
+            guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
+                  let offset = field(selected.value, "base", depth: depth + 1),
+                  String(reflecting: type(of: offset)) == "SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>",
+                  field(offset, "offset", depth: depth + 2) as? Int == 1,
+                  let base = field(offset, "base", depth: depth + 2) as? AnyShapeStyle,
+                  let box = unboxStyle(base, path: path + "/base/base", depth: depth + 2) else { return nil }
+            selected = box
+            secondaryPath = path
+            if SwiftUITextMetadataPolicy.isSecondaryPackBox(String(reflecting: type(of: selected.value))) {
+                guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
+                      let pack = field(selected.value, "base", depth: selected.depth + 1),
+                      ["SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>",
+                       "SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>"].contains(String(reflecting: type(of: pack))),
+                      let secondary = field(pack, "secondary", depth: selected.depth + 2) as? AnyShapeStyle,
+                      let box = unboxStyle(secondary, path: selected.path + "/base/secondary", depth: selected.depth + 2) else { return nil }
+                selected = box
+                secondaryPath = nil
+            }
+        } else if SwiftUITextMetadataPolicy.isSecondaryModifierBox(selectedType) {
+            let path = selected.path
+            let depth = selected.depth
+            guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
+                  let modifier = field(selected.value, "base", depth: depth + 1),
+                  String(reflecting: type(of: modifier)) == "SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>",
+                  field(modifier, "level", depth: depth + 2) as? Int == 1,
+                  let color = field(modifier, "base", depth: depth + 2) as? Color,
+                  let provider = field(color, "provider", depth: depth + 3) else { return nil }
+            selected = (provider, path + "/base/base/provider", depth + 3)
+            secondaryPath = path
+        }
         if SwiftUITextMetadataPolicy.isTintStyleBox(String(reflecting: type(of: selected.value))) {
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
                   field(selected.value, "base", depth: selected.depth + 1) is TintShapeStyle,
@@ -117,14 +156,31 @@ enum SwiftUIEnvironmentColorReader {
         let color = unsafeBitCast(box, to: Color.self)
         guard let provider = field(color, "provider", depth: selected.depth + 1), (provider as AnyObject) === box,
               local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2) else { return nil }
-        let resolved = color.resolve(in: environment)
+        var resolved = color.resolve(in: environment)
+        if secondaryPath != nil {
+            let baseRGBA = [resolved.red, resolved.green, resolved.blue, resolved.opacity]
+            guard baseRGBA.allSatisfy({ $0.isFinite && (0...1).contains($0) }),
+                  local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2),
+                  let secondary = SwiftUISecondaryColorResolver.apply(to: color),
+                  let provider = field(secondary, "provider", depth: selected.depth + 1),
+                  String(reflecting: type(of: provider)) == "SwiftUI.ColorBox<SwiftUI.Color.HierarchicalOpacityColor>",
+                  Mirror(reflecting: provider).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyColorBox",
+                  let payload = field(provider, "base", depth: selected.depth + 2),
+                  String(reflecting: type(of: payload)) == "SwiftUI.Color.HierarchicalOpacityColor",
+                  field(payload, "level", depth: selected.depth + 3) as? Int == 1,
+                  let original = field(payload, "base", depth: selected.depth + 3) as? Color,
+                  let originalProvider = field(original, "provider", depth: selected.depth + 4),
+                  (originalProvider as AnyObject) === box,
+                  local.consume(depth: selected.depth + 5), budget.consume(depth: selected.depth + 5) else { return nil }
+            resolved = secondary.resolve(in: environment)
+        }
         withExtendedLifetime(environment) {}
         withExtendedLifetime(box) {}
         let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
         guard rgba.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
         let attribute = RuntimeAttribute(identifier: try .init(rawValue: "common.text.color"),
             value: .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))
-        return try RuntimeSemanticTextField(path: selected.path, attribute: attribute)
+        return try RuntimeSemanticTextField(path: secondaryPath ?? selected.path, attribute: attribute)
     }
 
     private static func copyWords(at address: UInt, count: Int) -> [UInt]? {

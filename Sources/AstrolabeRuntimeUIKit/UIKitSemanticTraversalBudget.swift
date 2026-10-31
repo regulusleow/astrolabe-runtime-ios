@@ -67,13 +67,30 @@ enum SwiftUITextMetadataPolicy {
         type == "SwiftUI.ColorBox<SwiftUI.Color.OpacityColor>"
     }
 
+    static func isSecondaryOffsetBox(_ type: String) -> Bool {
+        isShapeStyleBox(type, style: "SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>")
+    }
+
+    static func isSecondaryModifierBox(_ type: String) -> Bool {
+        isShapeStyleBox(type, style: "SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>")
+    }
+
+    static func isSecondaryPackBox(_ type: String) -> Bool {
+        isShapeStyleBox(type, style: "SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>") ||
+        isShapeStyleBox(type, style: "SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>")
+    }
+
     static func isTintKey(_ type: String) -> Bool {
         isEnvironmentKey(type, name: "TintKey")
     }
 
     static func isTintStyleBox(_ type: String) -> Bool {
+        isShapeStyleBox(type, style: "SwiftUI.TintShapeStyle")
+    }
+
+    private static func isShapeStyleBox(_ type: String, style: String) -> Bool {
         let prefix = "SwiftUI.(unknown context at $"
-        let suffix = ").ShapeStyleBox<SwiftUI.TintShapeStyle>"
+        let suffix = ").ShapeStyleBox<" + style + ">"
         guard type.hasPrefix(prefix), type.hasSuffix(suffix) else { return false }
         let context = type.dropFirst(prefix.count).dropLast(suffix.count)
         return !context.isEmpty && context.allSatisfy(\.isHexDigit)

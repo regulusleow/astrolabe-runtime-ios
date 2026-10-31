@@ -35,6 +35,33 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
         XCTAssertFalse(SwiftUITextMetadataPolicy.isTintStyleBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.TintShapeStyle>.Type"))
     }
 
+    func testSecondaryOffsetBoxRequiresExactOwnerAndErasedStyleBase() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<Other.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.SystemColorsStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryOffsetBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.OffsetShapeStyle<SwiftUI.AnyShapeStyle>>.Type"))
+    }
+
+    func testSecondaryModifierBoxRequiresExactColorBase() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<Other.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryModifierBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyleModifier<SwiftUI.Color>>.Type"))
+    }
+
+    func testSecondaryPackBoxRequiresTwoOrThreeErasedStyles() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("Other.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, Other.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>"))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.isSecondaryPackBox("SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>>.Type"))
+    }
+
     func testExplicitFontPresenceBlocksInheritanceEvenWithoutProjectedFont() {
         var proof = SwiftUITextScopeProof()
         proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")
