@@ -51,13 +51,21 @@ if runtimes:
 }
 
 select_device_type() {
-  xcrun simctl list devicetypes --json | python3 -c '
+  xcrun simctl list runtimes --json | python3 -c '
 import json
 import sys
 
+runtime = next(
+    (
+        runtime
+        for runtime in json.load(sys.stdin).get("runtimes", [])
+        if runtime.get("identifier") == sys.argv[1]
+    ),
+    {},
+)
 device_types = [
     device_type
-    for device_type in json.load(sys.stdin).get("devicetypes", [])
+    for device_type in runtime.get("supportedDeviceTypes", [])
     if device_type.get("name", "").startswith("iPhone")
 ]
 preferred = next(
@@ -71,7 +79,7 @@ preferred = next(
 selected = preferred or (device_types[0] if device_types else None)
 if selected:
     print(selected["identifier"])
-'
+' "$runtime_identifier"
 }
 
 runtime_identifier="$(select_runtime)"
