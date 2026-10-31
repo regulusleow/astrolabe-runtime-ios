@@ -57,8 +57,10 @@ SwiftUI text inspection has a bounded scope verified on iOS 27.0 simulators and
 iOS 27.2 arm64 devices. On 27.2, semantic capture prepares app-local accessibility
 metadata without changing accessibility settings or posting status notifications.
 Verified Text attachments expose fonts and explicit pure foreground colors;
-private environment-color adapters still require iOS 27.0. Hierarchical calculation
-additionally requires an arm64 simulator. Unknown layouts remain unavailable.
+inherited pure colors also support verified singleton environment entries on these
+platforms, including color opacity and child overrides. Tint and hierarchical
+environment styles still require iOS 27.0; hierarchical calculation additionally
+requires an arm64 simulator. Unknown layouts remain unavailable.
 
 Patches never modify source code, the App binary, application models, or
 persistent storage. They remain active across Host reconnections and are
