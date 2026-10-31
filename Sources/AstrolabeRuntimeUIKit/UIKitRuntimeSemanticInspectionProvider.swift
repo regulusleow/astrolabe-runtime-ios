@@ -47,6 +47,8 @@ package final class UIKitRuntimeSemanticInspectionProvider: RuntimeSemanticInspe
     package func capture(options: RuntimeSemanticCaptureOptions) async throws -> RuntimeHierarchySnapshotPayload {
         let context = try select(options: options)
         try validate(context)
+        try Task.checkCancellation()
+        UIKitAccessibilityMetadataBootstrap.prepare()
         let collector = UIKitSemanticAccessibilityCollector(registry: registry)
         // Public AX getters may become ready asynchronously. No activation or global notification.
         // Readiness never reads AX value or Text attachments, and produces no frozen payload.
