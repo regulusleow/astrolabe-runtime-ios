@@ -50,9 +50,14 @@ SwiftUI 文本检查目前覆盖经 iOS 27.0 模拟器和 iOS 27.2 arm64 真机�
 这些是验证环境，不是整个 Package 的最低系统要求。上述平台的语义采集会准备 App 内的无障碍元数据，
 不更改无障碍设置，也不发送状态通知。已验证的 Text attachment 支持字体和显式纯前景色；
 继承纯色支持已确认的单条环境记录，包括颜色透明度和子节点覆盖。
-Tint、secondary 和 tertiary 支持已在 iOS 27.0 arm64 模拟器与 iOS 27.2 arm64 真机上验证，
+继承 tint、secondary 和 tertiary 支持已在 iOS 27.0 arm64 模拟器与 iOS 27.2 arm64 真机上验证，
 包括深浅色及增加对比度下的默认系统色。未知私有布局只使对应属性不可用；
 UIKit 和 Core Animation 检查保留各自的平台要求。
+
+iOS 27.0 arm64 模拟器还验证了 Text 直接调用 `.foregroundStyle(.tint)`、
+`.foregroundStyle(.secondary)` 和 `.foregroundStyle(.tertiary)`，复用当前显式 tint、
+父级纯色或调色板，并随深浅色及增加对比度变化。无法证明的默认 tint、未知父样式或
+嵌套层级不会导出颜色。
 
 iOS 27.0 arm64 模拟器还支持已验证的 Text 直接及继承 `LinearGradient` 前景样式，通过
 `ios.swiftui.text.foregroundStyle` 导出最多 32 个有序色标和单位空间起止点。这些是源样式参数，

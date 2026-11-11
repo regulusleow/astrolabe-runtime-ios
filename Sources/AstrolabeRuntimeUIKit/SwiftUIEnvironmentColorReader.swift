@@ -3,22 +3,14 @@ import AstrolabeProtocol
 import Foundation
 import SwiftUI
 
-/// Verified singleton environment entries; each OS keeps its own proven style scope.
+/// Projects pure colors and palette levels from a selected style without choosing its source.
 @available(iOS 17.0, *)
 @MainActor
 enum SwiftUIEnvironmentColorReader {
-    static func read(selection: SwiftUIEnvironmentStyleReader.Selection, environment: EnvironmentValues, local: inout UIKitSemanticTraversalBudget,
+    static func read(selection: SwiftUIEnvironmentStyleReader.Selection, hierarchyLevel requestedLevel: Int, environment: EnvironmentValues, local: inout UIKitSemanticTraversalBudget,
                      budget: inout UIKitSemanticTraversalBudget) throws -> RuntimeSemanticTextField? {
         func field(_ value: Any, _ name: String, depth: Int) -> Any? {
             SwiftUIEnvironmentStyleReader.field(value, name, depth: depth, local: &local, budget: &budget)
-        }
-
-        func resolvedField(_ resolved: Color.Resolved, path: String) throws -> RuntimeSemanticTextField? {
-            let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
-            guard rgba.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
-            let attribute = RuntimeAttribute(identifier: try .init(rawValue: "common.text.color"),
-                value: .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))
-            return try RuntimeSemanticTextField(path: path, attribute: attribute)
         }
 
         func unboxStyle(_ style: AnyShapeStyle, path: String, depth: Int) -> SwiftUIEnvironmentStyleReader.Selection? {
@@ -29,7 +21,11 @@ enum SwiftUIEnvironmentColorReader {
         var hierarchyPath: String?
         var hierarchyLevel = 0
         let selectedType = String(reflecting: type(of: selected.value))
-        if SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox(selectedType) {
+        if requestedLevel != 0 {
+            guard SwiftUITextMetadataPolicy.isSupportedHierarchyLevel(requestedLevel) else { return nil }
+            hierarchyLevel = requestedLevel
+            hierarchyPath = selection.path
+        } else if SwiftUITextMetadataPolicy.isDefaultHierarchyOffsetBox(selectedType) {
             let depth = selected.depth
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
                   let offset = field(selected.value, "base", depth: depth + 1),
@@ -56,20 +52,6 @@ enum SwiftUIEnvironmentColorReader {
             selected = box
             hierarchyPath = path
             hierarchyLevel = level
-            if SwiftUITextMetadataPolicy.isHierarchyPackBox(String(reflecting: type(of: selected.value))) {
-                guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
-                      let pack = field(selected.value, "base", depth: selected.depth + 1),
-                      ["SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>",
-                       "SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>"].contains(String(reflecting: type(of: pack))),
-                      local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2) else { return nil }
-                // A pair reuses its secondary at level2; a triple has an explicit tertiary.
-                let name = level == 2 && String(reflecting: type(of: pack)).hasPrefix("SwiftUI.ShapeStyleTriple<") ? "tertiary" : "secondary"
-                guard let style = field(pack, name, depth: selected.depth + 2) as? AnyShapeStyle,
-                      let box = unboxStyle(style, path: selected.path + "/base/" + name, depth: selected.depth + 2) else { return nil }
-                selected = box
-                hierarchyPath = nil
-                hierarchyLevel = 0
-            }
         } else if SwiftUITextMetadataPolicy.isHierarchyModifierBox(selectedType) {
             let path = selected.path
             let depth = selected.depth
@@ -83,6 +65,20 @@ enum SwiftUIEnvironmentColorReader {
             selected = .init(value: provider, path: path + "/base/base/provider", depth: depth + 3)
             hierarchyPath = path
             hierarchyLevel = level
+        }
+        if hierarchyLevel > 0, SwiftUITextMetadataPolicy.isHierarchyPackBox(String(reflecting: type(of: selected.value))) {
+            guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
+                  let pack = field(selected.value, "base", depth: selected.depth + 1),
+                  ["SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>",
+                   "SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>"].contains(String(reflecting: type(of: pack))),
+                  local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2) else { return nil }
+            // A pair reuses its secondary at level2; a triple has an explicit tertiary.
+            let name = hierarchyLevel == 2 && String(reflecting: type(of: pack)).hasPrefix("SwiftUI.ShapeStyleTriple<") ? "tertiary" : "secondary"
+            guard let style = field(pack, name, depth: selected.depth + 2) as? AnyShapeStyle,
+                  let box = unboxStyle(style, path: selected.path + "/base/" + name, depth: selected.depth + 2) else { return nil }
+            selected = box
+            hierarchyPath = nil
+            hierarchyLevel = 0
         }
         if SwiftUITextMetadataPolicy.isTintStyleBox(String(reflecting: type(of: selected.value))) {
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
@@ -147,6 +143,14 @@ enum SwiftUIEnvironmentColorReader {
             providerDepth += 3
         }
         return true
+    }
+
+    static func resolvedField(_ resolved: Color.Resolved, path: String) throws -> RuntimeSemanticTextField? {
+        let rgba = [resolved.red, resolved.green, resolved.blue, resolved.opacity].map(Double.init)
+        guard rgba.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
+        let attribute = RuntimeAttribute(identifier: try .init(rawValue: "common.text.color"),
+            value: .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))
+        return try RuntimeSemanticTextField(path: path, attribute: attribute)
     }
 }
 #endif

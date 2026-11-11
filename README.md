@@ -56,11 +56,17 @@ minimum OS requirement. On these platforms, semantic capture prepares app-local 
 metadata without changing accessibility settings or posting status notifications.
 Verified Text attachments expose fonts and explicit pure foreground colors;
 inherited pure colors also support verified singleton environment entries on these
-platforms, including color opacity and child overrides. Tint, secondary and
+platforms, including color opacity and child overrides. Inherited tint, secondary and
 tertiary styles are verified on iOS 27.0 arm64 simulators and iOS 27.2 arm64 devices,
 including default palettes in light/dark appearance and increased contrast.
 Unknown private layouts leave the affected attributes unavailable; UIKit and
 Core Animation inspection retain their own platform requirements.
+
+On iOS 27.0 arm64 simulators, direct Text `.foregroundStyle(.tint)`,
+`.foregroundStyle(.secondary)` and `.foregroundStyle(.tertiary)` are also verified.
+They reuse the current explicit tint, parent pure color or palette, including
+light/dark appearance and increased contrast. An unproven default tint, unknown
+parent style or nested hierarchy leaves the color unavailable.
 
 On iOS 27.0 arm64 simulators, verified direct Text and inherited `LinearGradient`
 foreground styles expose up to 32 ordered color stops and unit-space endpoints

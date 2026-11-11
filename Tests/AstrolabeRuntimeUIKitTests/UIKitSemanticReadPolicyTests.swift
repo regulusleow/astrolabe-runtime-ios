@@ -3,6 +3,16 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testDirectHierarchyBoxRequiresExactOwnerAndStyle() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isDirectHierarchyBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.HierarchicalShapeStyle>"))
+        for type in ["Other.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyle>",
+                     "SwiftUI.(unknown context at $1).ShapeStyleBox<Other.HierarchicalShapeStyle>",
+                     "SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.HierarchicalShapeStyle>",
+                     "SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyle>.Type"] {
+            XCTAssertFalse(SwiftUITextMetadataPolicy.isDirectHierarchyBox(type))
+        }
+    }
+
     func testTextStyleProjectionBudgetIncludesVerifiedDirectPathAndRefusesNextDepth() {
         var budget = UIKitSemanticTraversalBudget(maxDepth: SwiftUITextMetadataPolicy.maxTextProjectionDepth, maxVisits: 10)
         XCTAssertTrue(budget.consume(depth: 21))

@@ -84,10 +84,10 @@ enum SwiftUITextAttachmentProjector {
                 isLeaf = true
                 if isOriginal { scopeProof.recordOriginalForegroundStyle() }
                 if #available(iOS 17.0, *), let environment,
-                   let gradient = try SwiftUILinearGradientProjector.projectModifier(entry.value, path: entry.path,
+                   let style = try SwiftUIForegroundStyleProjector.projectModifier(entry.value, path: entry.path,
                         depth: entry.depth, environment: environment, local: &local, budget: &budget) {
-                    attributes = [gradient.attribute]
-                    attributePath = gradient.path
+                    attributes = [style.attribute]
+                    attributePath = style.path
                 } else {
                     issues.append(semanticIssue("unsupportedLayout", path: entry.path))
                     if isOriginal { scopeProof.markUnknownOriginalBranch() }
@@ -215,7 +215,7 @@ enum SwiftUITextAttachmentProjector {
                 }
                 if scopeProof.canInheritForegroundStyle, !local.truncated, !budget.truncated,
                    #available(iOS 17.0, *),
-                   let inherited = try SwiftUIEnvironmentStyleReader.read(environment: environment, local: &local, budget: &budget) {
+                   let inherited = try SwiftUIForegroundStyleProjector.projectEnvironment(environment, local: &local, budget: &budget) {
                     let size = try JSONEncoder().encode(inherited).count
                     if outputBytes + size <= 4 * 1024 * 1024 {
                         outputBytes += size

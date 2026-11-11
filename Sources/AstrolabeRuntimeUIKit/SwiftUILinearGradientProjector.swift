@@ -6,19 +6,6 @@ import SwiftUI
 @available(iOS 17.0, *)
 @MainActor
 enum SwiftUILinearGradientProjector {
-    static func projectModifier(_ value: Any, path: String, depth: Int, environment: EnvironmentValues,
-                                local: inout UIKitSemanticTraversalBudget,
-                                budget: inout UIKitSemanticTraversalBudget) throws -> RuntimeSemanticTextField? {
-        guard supportsCurrentLayout,
-              String(reflecting: type(of: value)) == "SwiftUI.TextForegroundStyleModifier",
-              local.consume(depth: depth), budget.consume(depth: depth) else { return nil }
-        let fields = Array(Mirror(reflecting: value).children.prefix(2))
-        guard fields.count == 1, fields[0].label == "style", let style = fields[0].value as? AnyShapeStyle,
-              let selection = SwiftUIEnvironmentStyleReader.unboxStyle(style, path: path + "/style", depth: depth + 1,
-                  local: &local, budget: &budget) else { return nil }
-        return try project(selection, environment: environment, local: &local, budget: &budget)
-    }
-
     /// shortcut: gradient fields are verified on iOS 27.0 arm64 simulators; validate other targets before widening.
     private static var supportsCurrentLayout: Bool {
         #if arch(arm64) && targetEnvironment(simulator)

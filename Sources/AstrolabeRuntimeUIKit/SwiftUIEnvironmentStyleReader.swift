@@ -1,9 +1,8 @@
 #if canImport(UIKit)
-import AstrolabeProtocol
 import Darwin
 import SwiftUI
 
-/// Selects one current environment entry before dispatching to a concrete style projector.
+/// Selects one current environment entry and provides bounded field access to style projectors.
 @available(iOS 17.0, *)
 @MainActor
 enum SwiftUIEnvironmentStyleReader {
@@ -14,15 +13,6 @@ enum SwiftUIEnvironmentStyleReader {
         let path: String
         /// Traversal depth already charged before selecting this box.
         let depth: Int
-    }
-
-    static func read(environment: EnvironmentValues, local: inout UIKitSemanticTraversalBudget,
-                     budget: inout UIKitSemanticTraversalBudget) throws -> RuntimeSemanticTextField? {
-        guard let selected = select(environment: environment, local: &local, budget: &budget) else { return nil }
-        if SwiftUITextMetadataPolicy.isLinearGradientBox(String(reflecting: type(of: selected.value))) {
-            return try SwiftUILinearGradientProjector.project(selected, environment: environment, local: &local, budget: &budget)
-        }
-        return try SwiftUIEnvironmentColorReader.read(selection: selected, environment: environment, local: &local, budget: &budget)
     }
 
     static func select(environment: EnvironmentValues, tint: Bool = false,

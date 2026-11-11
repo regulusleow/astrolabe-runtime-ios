@@ -6,3 +6,4 @@
 //
 
 #import "ASTRuntimeMetadataAdapter.h"
+#import "ASTSwiftUIEnvironmentStyle.h"

@@ -69,6 +69,10 @@ struct SwiftUITextScopeProof {
 
 /// Verified Text metadata layouts; unknown versions and types fail closed.
 enum SwiftUITextMetadataPolicy {
+    static func isDirectHierarchyBox(_ type: String) -> Bool {
+        isShapeStyleBox(type, style: "SwiftUI.HierarchicalShapeStyle")
+    }
+
     /// Direct Text style modifiers need four more bounded slots than inherited styles.
     static let maxTextProjectionDepth = 24
 
