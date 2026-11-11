@@ -19,7 +19,7 @@ enum SwiftUITextAttachmentProjector {
     }
 
     static func project(node: NSObject, isTextNode: Bool, budget: inout UIKitSemanticTraversalBudget, outputBytes: inout Int) throws -> Projection {
-        var local = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 1_500)
+        var local = UIKitSemanticTraversalBudget(maxDepth: SwiftUITextMetadataPolicy.maxTextProjectionDepth, maxVisits: 1_500)
         var issues: [RuntimeInspectionIssue] = []
         var fields: [String: [RuntimeSemanticTextField]] = [:]
         var scopeProof = SwiftUITextScopeProof()
@@ -57,6 +57,7 @@ enum SwiftUITextAttachmentProjector {
             if SwiftUITextMetadataPolicy.isLeaf(typeName) { continue }
             let isTextField = entry.path.contains("/texts/") || entry.path.contains("/layoutProperties/")
             var attributes: [RuntimeAttribute] = []
+            var attributePath = entry.path
             var isLeaf = false
             func attribute(_ name: String, _ value: RuntimeAttributeValue) -> RuntimeAttribute {
                 RuntimeAttribute(identifier: try! .init(rawValue: name), value: value)
@@ -79,6 +80,18 @@ enum SwiftUITextAttachmentProjector {
                         attributes = [attribute("common.text.color", .color(.init(colorSpace: "srgb", red: rgba[0], green: rgba[1], blue: rgba[2], alpha: rgba[3])))]
                     } else { issues.append(semanticIssue("colorOutOfRange", path: entry.path)) }
                 } else { issues.append(semanticIssue("environmentUnavailable", path: entry.path)) }
+            } else if isTextField, typeName == "SwiftUI.TextForegroundStyleModifier" {
+                isLeaf = true
+                if isOriginal { scopeProof.recordOriginalForegroundStyle() }
+                if #available(iOS 17.0, *), let environment,
+                   let gradient = try SwiftUILinearGradientProjector.projectModifier(entry.value, path: entry.path,
+                        depth: entry.depth, environment: environment, local: &local, budget: &budget) {
+                    attributes = [gradient.attribute]
+                    attributePath = gradient.path
+                } else {
+                    issues.append(semanticIssue("unsupportedLayout", path: entry.path))
+                    if isOriginal { scopeProof.markUnknownOriginalBranch() }
+                }
             } else if isTextField, typeName == "Swift.String", let string = entry.value as? String {
                 isLeaf = true
                 if string.utf8.count <= 16_384 {
@@ -99,7 +112,7 @@ enum SwiftUITextAttachmentProjector {
             let parts = entry.path.split(separator: "/")
             let root = parts.first == "attachmentsStorage" ? parts.prefix(2).joined(separator: "/") + "/attachment" : "cachedCombinedAttachment/some"
             for attribute in attributes {
-                let field = try RuntimeSemanticTextField(path: entry.path, attribute: attribute)
+                let field = try RuntimeSemanticTextField(path: attributePath, attribute: attribute)
                 let size = try JSONEncoder().encode(field).count
                 guard outputBytes + size <= 4 * 1024 * 1024, fields[root, default: []].count < 1_500 else {
                     local.markTruncated()
@@ -176,7 +189,10 @@ enum SwiftUITextAttachmentProjector {
         let originalFields = candidates.filter { $0.source == semanticName("ios.swiftui.attachmentsStorage") }.flatMap(\.fields)
         var canonical: [RuntimeAttribute] = []
         if scopeProof.canPromote && !local.truncated && !budget.truncated {
-            for name in ["common.text.content", "common.text.fontName", "common.text.fontSize", "common.text.color"] {
+            let mixedForeground = scopeProof.hasMixedForegroundStyles
+            if mixedForeground { issues.append(semanticIssue("ambiguousTextScope")) }
+            for name in ["common.text.content", "common.text.fontName", "common.text.fontSize", "common.text.color", "ios.swiftui.text.foregroundStyle"] {
+                if mixedForeground && ["common.text.color", "ios.swiftui.text.foregroundStyle"].contains(name) { continue }
                 let matches = originalFields.filter { $0.attribute.identifier.rawValue == name }
                 if let first = matches.first, matches.allSatisfy({ $0.attribute == first.attribute }) {
                     canonical.append(first.attribute)
@@ -197,9 +213,9 @@ enum SwiftUITextAttachmentProjector {
                         } else { local.markTruncated() }
                     } else { issues.append(semanticIssue("invalidValue", path: "environment/font")) }
                 }
-                if scopeProof.canInheritColor, !local.truncated, !budget.truncated,
+                if scopeProof.canInheritForegroundStyle, !local.truncated, !budget.truncated,
                    #available(iOS 17.0, *),
-                   let inherited = try SwiftUIEnvironmentColorReader.read(environment: environment, local: &local, budget: &budget) {
+                   let inherited = try SwiftUIEnvironmentStyleReader.read(environment: environment, local: &local, budget: &budget) {
                     let size = try JSONEncoder().encode(inherited).count
                     if outputBytes + size <= 4 * 1024 * 1024 {
                         outputBytes += size
@@ -254,7 +270,7 @@ enum SwiftUITextAttachmentProjector {
         case "SwiftUI.AccessibilityLabelStorage": return ["texts", "layoutProperties"]
         case "SwiftUI.Text": return ["storage", "modifiers"]
         case "SwiftUI.Text.Storage": return ["verbatim", "anyTextStorage"]
-        case "SwiftUI.Text.Modifier": return ["font", "color", "tracking", "kerning"]
+        case "SwiftUI.Text.Modifier": return ["font", "color", "tracking", "kerning", "anyTextModifier"]
         case "SwiftUI.LocalizedStringKey": return ["key"]
         case "SwiftUI.Indirect<SwiftUI.TextLayoutProperties>": return ["box"]
         case "SwiftUI.MutableBox<SwiftUI.TextLayoutProperties>": return ["value"]

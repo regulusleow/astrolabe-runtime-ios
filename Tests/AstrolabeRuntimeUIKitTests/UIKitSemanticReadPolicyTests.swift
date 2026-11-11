@@ -3,6 +3,59 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testTextStyleProjectionBudgetIncludesVerifiedDirectPathAndRefusesNextDepth() {
+        var budget = UIKitSemanticTraversalBudget(maxDepth: SwiftUITextMetadataPolicy.maxTextProjectionDepth, maxVisits: 10)
+        XCTAssertTrue(budget.consume(depth: 21))
+        XCTAssertTrue(budget.consume(depth: 23))
+        XCTAssertFalse(budget.consume(depth: 24))
+        XCTAssertTrue(budget.truncated)
+        XCTAssertEqual(budget.visits, 2)
+    }
+
+    func testOriginalStyleAndColorConflictCannotBePromotedAsOneForeground() {
+        var proof = SwiftUITextScopeProof()
+        proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")
+        proof.recordOriginalColor()
+        XCTAssertFalse(proof.hasMixedForegroundStyles)
+        proof.recordOriginalForegroundStyle()
+        XCTAssertTrue(proof.hasMixedForegroundStyles)
+        XCTAssertFalse(proof.canInheritForegroundStyle)
+        XCTAssertTrue(proof.canInheritFont)
+    }
+
+    func testLinearGradientBoxRequiresExactOwnerAndVerifiedStyle() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isLinearGradientBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.LinearGradient>"))
+        for type in [
+            "Other.(unknown context at $1).ShapeStyleBox<SwiftUI.LinearGradient>",
+            "SwiftUI.(unknown context at $1).ShapeStyleBox<Other.LinearGradient>",
+            "SwiftUI.(unknown context at $notHex).ShapeStyleBox<SwiftUI.LinearGradient>",
+            "SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.RadialGradient>",
+            "SwiftUI.(unknown context at $1).ShapeStyleBox<SwiftUI.LinearGradient>.Type"
+        ] {
+            XCTAssertFalse(SwiftUITextMetadataPolicy.isLinearGradientBox(type))
+        }
+    }
+
+    func testLinearGradientLocationsPreserveOrderAndRejectInvalidValues() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.validLinearGradientLocations([0, 0.3, 1]))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.validLinearGradientLocations([0, 0, 1]))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.validLinearGradientLocations([0.5]))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.validLinearGradientLocations(Array(repeating: 0.5, count: 32)))
+        for values: [Double] in [[], [0.5, 0.3], [-0.1, 1], [0, 1.1], [.nan], [.infinity], [-.infinity], Array(repeating: 0, count: 33)] {
+            XCTAssertFalse(SwiftUITextMetadataPolicy.validLinearGradientLocations(values))
+        }
+    }
+
+    func testLinearGradientLayoutDoesNotExpandExistingTextPlatformSupport() {
+        XCTAssertTrue(SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: 27, minor: 0, simulator: true))
+        XCTAssertFalse(SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: 27, minor: 0, simulator: false))
+        for simulator in [false, true] {
+            for (major, minor) in [(26, 0), (27, 1), (27, 2), (28, 0)] {
+                XCTAssertFalse(SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: major, minor: minor, simulator: simulator))
+            }
+        }
+    }
+
     func testHierarchyLayoutRejectsUnverifiedOSAndDeviceCombinations() {
         XCTAssertTrue(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 0, simulator: true))
         XCTAssertTrue(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 2, simulator: false))
@@ -110,7 +163,7 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
         proof.recordOriginalFont()
         XCTAssertTrue(proof.canPromote)
         XCTAssertFalse(proof.canInheritFont)
-        XCTAssertTrue(proof.canInheritColor)
+        XCTAssertTrue(proof.canInheritForegroundStyle)
     }
 
     func testInheritedFontRequiresExactlyOneCompleteOriginalText() {
@@ -139,10 +192,10 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
     func testExplicitColorPresenceBlocksInheritanceEvenWithoutProjectedColor() {
         var proof = SwiftUITextScopeProof()
         proof.recordOriginalText(path: "attachmentsStorage/0/texts/0")
-        XCTAssertTrue(proof.canInheritColor)
+        XCTAssertTrue(proof.canInheritForegroundStyle)
         proof.recordOriginalColor()
         XCTAssertTrue(proof.canPromote)
-        XCTAssertFalse(proof.canInheritColor)
+        XCTAssertFalse(proof.canInheritForegroundStyle)
         XCTAssertTrue(proof.canInheritFont)
     }
 

@@ -61,7 +61,7 @@ struct UIKitSemanticAccessibilityCollector {
     func capture(window: UIWindow, snapshotID: RuntimeOpaqueIdentifier, capturedAt: Double,
                  renderRoots: [RuntimeNode], privacyIssue: RuntimeInspectionIssue?) throws -> Capture {
         var budget = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 2_000)
-        var textBudget = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 10_000)
+        var textBudget = UIKitSemanticTraversalBudget(maxDepth: SwiftUITextMetadataPolicy.maxTextProjectionDepth, maxVisits: 10_000)
         var seen = Set<ObjectIdentifier>()
         var details: [RuntimeNodeDetailPayload] = []
         var relations: [RuntimeNodeRelation] = []

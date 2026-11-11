@@ -62,6 +62,12 @@ including default palettes in light/dark appearance and increased contrast.
 Unknown private layouts leave the affected attributes unavailable; UIKit and
 Core Animation inspection retain their own platform requirements.
 
+On iOS 27.0 arm64 simulators, verified direct Text and inherited `LinearGradient`
+foreground styles expose up to 32 ordered color stops and unit-space endpoints
+as `ios.swiftui.text.foregroundStyle`. These are source parameters, not sampled
+pixels. Other gradient kinds, unknown wrappers and conflicting direct Color/style
+modifiers remain unavailable; the existing single-color attribute stays separate.
+
 Patches never modify source code, the App binary, application models, or
 persistent storage. They remain active across Host reconnections and are
 discarded when the Runtime stops or the App process exits.

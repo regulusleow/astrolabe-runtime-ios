@@ -54,6 +54,11 @@ Tint、secondary 和 tertiary 支持已在 iOS 27.0 arm64 模拟器与 iOS 27.2 
 包括深浅色及增加对比度下的默认系统色。未知私有布局只使对应属性不可用；
 UIKit 和 Core Animation 检查保留各自的平台要求。
 
+iOS 27.0 arm64 模拟器还支持已验证的 Text 直接及继承 `LinearGradient` 前景样式，通过
+`ios.swiftui.text.foregroundStyle` 导出最多 32 个有序色标和单位空间起止点。这些是源样式参数，
+不是像素采样。其他渐变、未知包装，以及无法确定覆盖顺序的直接 Color/样式组合仍不可用；
+原有单色属性独立保留。
+
 补丁不会修改源代码、App 二进制文件、业务模型或持久化存储。补丁在 Host 重新连接后仍然有效，并在
 Runtime 停止或 App 进程退出时失效。
 

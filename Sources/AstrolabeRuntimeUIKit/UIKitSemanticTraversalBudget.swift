@@ -32,24 +32,31 @@ struct UIKitSemanticTraversalBudget {
 
 /// Pure proof state shared by the actual private Text adapter and algorithm tests.
 struct SwiftUITextScopeProof {
+    /// A direct Color and foreground modifier conflict even if one failed projection.
+    var hasMixedForegroundStyles: Bool { originalHasColor && originalHasForegroundStyle }
+
+    mutating func recordOriginalColor() { originalHasColor = true }
+
     /// Observed original Text scopes; combined-cache scopes never enter this set.
     private var originalPaths = Set<String>()
     /// Whether an original branch or field could not be identified completely.
     private var originalLayoutUnproven = false
-    /// Explicit original Color presence blocks inheritance even when its value is refused.
+    /// Explicit original foreground-style presence blocks inheritance even when its value is refused.
+    private var originalHasForegroundStyle = false
+    /// Explicit Color presence survives invalid or unavailable RGBA projection.
     private var originalHasColor = false
     /// Explicit original Font presence blocks inheritance even when resolution fails.
     private var originalHasFont = false
 
     /// Whether exactly one original Text scope has been completely identified.
     var canPromote: Bool { originalPaths.count == 1 && !originalLayoutUnproven }
-    /// An unambiguous original Text without any explicit Color may use its own environment.
-    var canInheritColor: Bool { canPromote && !originalHasColor }
+    /// An unambiguous original Text without an explicit foreground style may use its own environment.
+    var canInheritForegroundStyle: Bool { canPromote && !originalHasForegroundStyle && !originalHasColor }
     /// An unambiguous original Text without an explicit Font may use its environment font.
     var canInheritFont: Bool { canPromote && !originalHasFont }
 
     mutating func recordOriginalText(path: String) { originalPaths.insert(path) }
-    mutating func recordOriginalColor() { originalHasColor = true }
+    mutating func recordOriginalForegroundStyle() { originalHasForegroundStyle = true }
     mutating func recordOriginalFont() { originalHasFont = true }
     mutating func markUnknownOriginalBranch() { originalLayoutUnproven = true }
 
@@ -62,6 +69,26 @@ struct SwiftUITextScopeProof {
 
 /// Verified Text metadata layouts; unknown versions and types fail closed.
 enum SwiftUITextMetadataPolicy {
+    /// Direct Text style modifiers need four more bounded slots than inherited styles.
+    static let maxTextProjectionDepth = 24
+
+    /// Bound before traversing or allocating resolved gradient stops.
+    static let maxLinearGradientStops = 32
+
+    static func isLinearGradientBox(_ type: String) -> Bool {
+        isShapeStyleBox(type, style: "SwiftUI.LinearGradient")
+    }
+
+    static func validLinearGradientLocations(_ locations: [Double]) -> Bool {
+        !locations.isEmpty && locations.count <= maxLinearGradientStops &&
+            locations.allSatisfy { $0.isFinite && (0...1).contains($0) } &&
+            zip(locations, locations.dropFirst()).allSatisfy { $0 <= $1 }
+    }
+
+    static func supportsLinearGradientLayout(major: Int, minor: Int, simulator: Bool) -> Bool {
+        major == 27 && minor == 0 && simulator
+    }
+
     static var supportsCurrentLayout: Bool {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         #if os(iOS) && arch(arm64) && !targetEnvironment(simulator) && !targetEnvironment(macCatalyst)
