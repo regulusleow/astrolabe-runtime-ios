@@ -1,6 +1,5 @@
 #if canImport(UIKit)
 import AstrolabeProtocol
-import CoreText
 import SwiftUI
 import UIKit
 
@@ -62,11 +61,22 @@ enum SwiftUITextAttachmentProjector {
             func attribute(_ name: String, _ value: RuntimeAttributeValue) -> RuntimeAttribute {
                 RuntimeAttribute(identifier: try! .init(rawValue: name), value: value)
             }
-            if isTextField, typeName == "SwiftUI.Font", let font = entry.value as? Font {
+            if typeName == "SwiftUI.Text", let text = entry.value as? Text,
+               #available(iOS 26.0, *), let environment,
+               let projection = try SwiftUITextRunProjector.project(text, path: entry.path, depth: entry.depth,
+                    environment: environment, local: &local, budget: &budget) {
+                isLeaf = true
+                if isOriginal { scopeProof.recordOriginalTextRuns() }
+                issues.append(contentsOf: projection.issues)
+                if let field = projection.field {
+                    attributes = [field.attribute]
+                    attributePath = field.path
+                } else if isOriginal { scopeProof.markUnknownOriginalBranch() }
+            } else if isTextField, typeName == "SwiftUI.Font", let font = entry.value as? Font {
                 isLeaf = true
                 if isOriginal { scopeProof.recordOriginalFont() }
                 if #available(iOS 26.0, *), let environment {
-                    if let resolved = fontAttributes(font, environment: environment) {
+                    if let resolved = SwiftUIFontProjector.attributes(font, environment: environment) {
                         attributes = resolved
                     } else { issues.append(semanticIssue("invalidValue", path: entry.path)) }
                 } else { issues.append(semanticIssue("environmentUnavailable", path: entry.path)) }
@@ -191,7 +201,8 @@ enum SwiftUITextAttachmentProjector {
         if scopeProof.canPromote && !local.truncated && !budget.truncated {
             let mixedForeground = scopeProof.hasMixedForegroundStyles
             if mixedForeground { issues.append(semanticIssue("ambiguousTextScope")) }
-            for name in ["common.text.content", "common.text.fontName", "common.text.fontSize", "common.text.color", "ios.swiftui.text.foregroundStyle"] {
+            for name in ["common.text.content", "common.text.fontName", "common.text.fontSize", "common.text.color", "ios.swiftui.text.foregroundStyle", "ios.swiftui.text.attributedTextRuns"] {
+                if scopeProof.hasOriginalTextRuns && ["common.text.fontName", "common.text.fontSize", "common.text.color", "ios.swiftui.text.foregroundStyle"].contains(name) { continue }
                 if mixedForeground && ["common.text.color", "ios.swiftui.text.foregroundStyle"].contains(name) { continue }
                 let matches = originalFields.filter { $0.attribute.identifier.rawValue == name }
                 if let first = matches.first, matches.allSatisfy({ $0.attribute == first.attribute }) {
@@ -203,7 +214,7 @@ enum SwiftUITextAttachmentProjector {
                 if scopeProof.canInheritFont, #available(iOS 26.0, *),
                    local.consume(depth: 1), budget.consume(depth: 1), let font = environment.font,
                    local.consume(depth: 2), budget.consume(depth: 2) {
-                    if let resolved = fontAttributes(font, environment: environment) {
+                    if let resolved = SwiftUIFontProjector.attributes(font, environment: environment) {
                         let fontFields = try resolved.map { try RuntimeSemanticTextField(path: "environment/font", attribute: $0) }
                         let size = try fontFields.reduce(0) { try $0 + JSONEncoder().encode($1).count }
                         if outputBytes + size <= 4 * 1024 * 1024 {
@@ -233,17 +244,6 @@ enum SwiftUITextAttachmentProjector {
         if candidates.isEmpty { issues.append(semanticIssue("textAttachmentUnavailable")) }
         issues.append(contentsOf: candidates.flatMap(\.issues))
         return Projection(candidates: candidates, canonicalAttributes: canonical, issues: issues, truncated: local.truncated || budget.truncated)
-    }
-
-    @available(iOS 26.0, *)
-    private static func fontAttributes(_ font: Font, environment: EnvironmentValues) -> [RuntimeAttribute]? {
-        let resolved = font.resolve(in: environment.fontResolutionContext)
-        let size = Double(resolved.pointSize)
-        guard size.isFinite && size > 0 else { return nil }
-        return [RuntimeAttribute(identifier: try! .init(rawValue: "common.text.fontName"), value: .string(CTFontCopyPostScriptName(resolved.ctFont) as String)),
-                RuntimeAttribute(identifier: try! .init(rawValue: "common.text.fontSize"), value: .measurement(.init(value: size, unit: .scaledLogical))),
-                RuntimeAttribute(identifier: try! .init(rawValue: "ios.swiftui.text.isBold"), value: .boolean(resolved.isBold)),
-                RuntimeAttribute(identifier: try! .init(rawValue: "ios.swiftui.text.isMonospaced"), value: .boolean(resolved.isMonospaced))]
     }
 
     private static func fieldName(_ path: String) -> String {

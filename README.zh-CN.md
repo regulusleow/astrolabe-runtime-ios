@@ -59,6 +59,13 @@ iOS 27.0 arm64 模拟器还验证了 Text 直接调用 `.foregroundStyle(.tint)`
 父级纯色或调色板，并随深浅色及增加对比度变化。无法证明的默认 tint、未知父样式或
 嵌套层级不会导出颜色。
 
+同一模拟器范围还支持已验证的拼接 Text 和 AttributedString 源分段，通过
+`ios.swiftui.text.attributedTextRuns` 复用现有 typed text-run 值，保留 UTF-16 范围、文字、
+已确认的字体名/字号、纯色及来源路径。某段样式不会被提升为整个节点的样式。
+超过 64 段或总文字超过 16 KiB UTF-8 时整组拒绝。本地化拼接及未知修饰器保持不可用；
+未验证的框架属性作用域、依赖父级样式的路径使对应字段缺失。这些是源分段，不代表最终
+glyph 布局或字符回退字体。
+
 iOS 27.0 arm64 模拟器还支持已验证的 Text 直接及继承 `LinearGradient` 前景样式，通过
 `ios.swiftui.text.foregroundStyle` 导出最多 32 个有序色标和单位空间起止点。这些是源样式参数，
 不是像素采样。其他渐变、未知包装，以及无法确定覆盖顺序的直接 Color/样式组合仍不可用；

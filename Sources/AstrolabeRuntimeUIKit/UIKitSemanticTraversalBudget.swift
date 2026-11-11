@@ -32,6 +32,10 @@ struct UIKitSemanticTraversalBudget {
 
 /// Pure proof state shared by the actual private Text adapter and algorithm tests.
 struct SwiftUITextScopeProof {
+    /// Segmented content cannot claim one whole-node font or foreground without a separate uniformity proof.
+    private(set) var hasOriginalTextRuns = false
+
+    mutating func recordOriginalTextRuns() { hasOriginalTextRuns = true }
     /// A direct Color and foreground modifier conflict even if one failed projection.
     var hasMixedForegroundStyles: Bool { originalHasColor && originalHasForegroundStyle }
 
@@ -51,9 +55,9 @@ struct SwiftUITextScopeProof {
     /// Whether exactly one original Text scope has been completely identified.
     var canPromote: Bool { originalPaths.count == 1 && !originalLayoutUnproven }
     /// An unambiguous original Text without an explicit foreground style may use its own environment.
-    var canInheritForegroundStyle: Bool { canPromote && !originalHasForegroundStyle && !originalHasColor }
+    var canInheritForegroundStyle: Bool { canPromote && !hasOriginalTextRuns && !originalHasForegroundStyle && !originalHasColor }
     /// An unambiguous original Text without an explicit Font may use its environment font.
-    var canInheritFont: Bool { canPromote && !originalHasFont }
+    var canInheritFont: Bool { canPromote && !hasOriginalTextRuns && !originalHasFont }
 
     mutating func recordOriginalText(path: String) { originalPaths.insert(path) }
     mutating func recordOriginalForegroundStyle() { originalHasForegroundStyle = true }

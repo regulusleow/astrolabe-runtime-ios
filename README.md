@@ -68,6 +68,15 @@ They reuse the current explicit tint, parent pure color or palette, including
 light/dark appearance and increased contrast. An unproven default tint, unknown
 parent style or nested hierarchy leaves the color unavailable.
 
+The same simulator scope also exposes verified concatenated Text and
+AttributedString source runs as `ios.swiftui.text.attributedTextRuns`, using the
+existing typed text-run value. Runs preserve UTF-16 ranges, text, proven font
+name/size, pure color and source paths; one segment's style is never promoted as
+the whole node's style. Groups exceeding 64 runs or 16 KiB of UTF-8 text are
+refused in full. Localized concatenation and unknown modifiers are unavailable;
+unverified framework scopes and parent-dependent styles leave affected fields
+missing. These source runs do not describe final glyph layout or fallback fonts.
+
 On iOS 27.0 arm64 simulators, verified direct Text and inherited `LinearGradient`
 foreground styles expose up to 32 ordered color stops and unit-space endpoints
 as `ios.swiftui.text.foregroundStyle`. These are source parameters, not sampled
