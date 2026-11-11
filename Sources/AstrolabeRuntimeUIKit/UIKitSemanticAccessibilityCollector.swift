@@ -61,7 +61,7 @@ struct UIKitSemanticAccessibilityCollector {
     func capture(window: UIWindow, snapshotID: RuntimeOpaqueIdentifier, capturedAt: Double,
                  renderRoots: [RuntimeNode], privacyIssue: RuntimeInspectionIssue?) throws -> Capture {
         var budget = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 2_000)
-        var textBudget = UIKitSemanticTraversalBudget(maxDepth: SwiftUITextMetadataPolicy.maxTextProjectionDepth, maxVisits: 10_000)
+        var attachmentBudget = UIKitSemanticTraversalBudget(maxDepth: 24, maxVisits: 10_000)
         var seen = Set<ObjectIdentifier>()
         var details: [RuntimeNodeDetailPayload] = []
         var relations: [RuntimeNodeRelation] = []
@@ -126,19 +126,26 @@ struct UIKitSemanticAccessibilityCollector {
                 else if attachmentObjects >= 30 {
                     projectionIssues.append(semanticIssue("attachmentLimit")); projectionTruncated = true
                 } else {
-                    let started = textBudget.visits
-                    let projection = try SwiftUITextAttachmentProjector.project(node: object, isTextNode: role == "text", budget: &textBudget, outputBytes: &outputBytes)
-                    if textBudget.visits > started { attachmentObjects += 1 }
-                    candidates = projection.candidates
-                    attributes = projection.canonicalAttributes
-                    projectionIssues = projection.issues
-                    projectionTruncated = projection.truncated
+                    let started = attachmentBudget.visits
+                    if role == "image" {
+                        let projection = try SwiftUIImageAttachmentProjector.project(node: object, budget: &attachmentBudget, outputBytes: &outputBytes)
+                        attributes = projection.attributes
+                        projectionIssues = projection.issues
+                        projectionTruncated = projection.truncated
+                    } else {
+                        let projection = try SwiftUITextAttachmentProjector.project(node: object, isTextNode: role == "text", budget: &attachmentBudget, outputBytes: &outputBytes)
+                        candidates = projection.candidates
+                        attributes = projection.canonicalAttributes
+                        projectionIssues = projection.issues
+                        projectionTruncated = projection.truncated
+                    }
+                    if attachmentBudget.visits > started { attachmentObjects += 1 }
                 }
             }
             var sections: [RuntimeAttributeSection] = []
             // Use the already-redacted AX value, not a second getter or a Text candidate.
             if let section = try UIKitSemanticAccessibilityFacts.section(for: ax) { sections.append(section) }
-            if !attributes.isEmpty { sections.append(.init(category: try .init(rawValue: "common.text"), attributes: attributes)) }
+            if !attributes.isEmpty { sections.append(.init(category: try .init(rawValue: role == "image" ? "ios.swiftui.image" : "common.text"), attributes: attributes)) }
             var representedViewID: RuntimeOpaqueIdentifier?
             if let view = object as? UIView {
                 let nativeID = registry.nodeID(for: view)
@@ -228,7 +235,7 @@ struct UIKitSemanticAccessibilityCollector {
         }
         if budget.truncated && !unique.contains(semanticIssue("budgetExceeded")) { unique.append(semanticIssue("budgetExceeded")) }
         return Capture(roots: root.map { [$0] } ?? [], details: details, relations: relations,
-                       issues: unique, visits: budget.visits, semanticCount: semanticCount, truncated: budget.truncated || textBudget.truncated)
+                       issues: unique, visits: budget.visits, semanticCount: semanticCount, truncated: budget.truncated || attachmentBudget.truncated)
     }
 
     private func nativeRole(for object: NSObject) -> String? {

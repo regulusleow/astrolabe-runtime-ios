@@ -83,6 +83,18 @@ as `ios.swiftui.text.foregroundStyle`. These are source parameters, not sampled
 pixels. Other gradient kinds, unknown wrappers and conflicting direct Color/style
 modifiers remain unavailable; the existing single-color attribute stays separate.
 
+On the same iOS 27.0 arm64 simulator scope, verified semantic image nodes expose
+`ios.swiftui.image.metadata`. It freezes one original Image's source parameters:
+symbol/resource names where present, UIImage point size/scale and available
+CGImage pixel size, and verified rendering/resizing modifiers in outer-to-inner
+order. Up to four modifier providers are accepted; unknown wrappers, ambiguous
+original sources and invalid values refuse the whole metadata object. Explicit
+nil modes remain null. Environment image scale and optional symbol rendering mode
+are recorded separately. Cached labels never supply resource names, and named
+images are not reloaded to infer sizes. These are source facts, distinct from the
+node frame, sampled pixels, final symbol colors and fit/fill or clipping geometry.
+Decorative images absent from accessibility do not gain synthetic nodes.
+
 Patches never modify source code, the App binary, application models, or
 persistent storage. They remain active across Host reconnections and are
 discarded when the Runtime stops or the App process exits.
