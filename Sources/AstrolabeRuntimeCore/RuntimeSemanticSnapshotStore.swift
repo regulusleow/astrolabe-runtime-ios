@@ -45,6 +45,8 @@ package final class RuntimeSemanticSnapshotStore {
         }
         let entry = Entry(capture: capture,
                           byteCount: byteCount, details: Dictionary(uniqueKeysWithValues: details.map { ($0.nodeID, $0) }))
+        // Another task can cancel this capture while its values are being encoded.
+        try Task.checkCancellation()
         removeExpired()
         entries.append(entry)
         entries.sort { $0.capture.capturedAtUnixTime < $1.capture.capturedAtUnixTime }

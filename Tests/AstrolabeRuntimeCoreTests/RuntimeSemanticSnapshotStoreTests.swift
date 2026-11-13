@@ -46,6 +46,34 @@ final class RuntimeSemanticSnapshotStoreTests: XCTestCase {
         XCTAssertEqual(try store.detail(nodeID: fifth.1.nodeID, snapshotID: fifth.0.snapshotID), fifth.1)
     }
 
+    @MainActor func testCancelledCapturePreservesCachedSnapshots() async throws {
+        let store = RuntimeSemanticSnapshotStore(now: { 100 })
+        let existing = try (0..<4).map { try fixture(String($0), time: 100) }
+        for value in existing {
+            try store.insert(capture: value.0, details: [value.1])
+        }
+        let fifth = try fixture("cancelled", time: 100)
+        let task = Task { @MainActor in
+            try store.insert(capture: fifth.0, details: [fifth.1])
+        }
+        // MainActor cannot start the task until this test suspends.
+        task.cancel()
+        do {
+            try await task.value
+            XCTFail("Cancelled capture must not be stored")
+        } catch is CancellationError {
+        }
+
+        for value in existing {
+            XCTAssertEqual(try store.detail(nodeID: value.1.nodeID, snapshotID: value.0.snapshotID), value.1)
+        }
+        assertError(try RuntimeErrorCode(rawValue: "inspection.snapshotUnavailable")) {
+            try store.detail(nodeID: fifth.1.nodeID, snapshotID: fifth.0.snapshotID)
+        }
+        try store.insert(capture: fifth.0, details: [fifth.1])
+        XCTAssertEqual(try store.detail(nodeID: fifth.1.nodeID, snapshotID: fifth.0.snapshotID), fifth.1)
+    }
+
     @MainActor func testEncodedDetailsCountTowardSingleCaptureLimitAndFailureIsAtomic() throws {
         let store = RuntimeSemanticSnapshotStore(now: { 100 })
         let a = try fixture("A", time: 100)
