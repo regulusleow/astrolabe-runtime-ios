@@ -176,7 +176,7 @@ enum SwiftUITextRunProjector {
                     if run.swiftUI.foregroundColor == nil && run.uiKit.foregroundColor != nil { current.color = nil }
                     if run.inlinePresentationIntent != nil { current.font = nil }
                     if run.link != nil { current.color = nil }
-                    guard try append(String(attributed[run.range].characters), style: current, path: runPath, depth: depth + 4) else { return false }
+                    guard try append(SwiftUITextRunPolicy.sourceText(in: attributed, range: run.range), style: current, path: runPath, depth: depth + 4) else { return false }
                 }
                 return true
             }

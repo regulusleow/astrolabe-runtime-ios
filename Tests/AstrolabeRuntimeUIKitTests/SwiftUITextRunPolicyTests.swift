@@ -1,9 +1,31 @@
 import AstrolabeProtocol
+import Foundation
 import XCTest
 @testable import AstrolabeRuntimeUIKit
 
 /// Pure contract/promotion rules; no UIKit or running UI is created.
 final class SwiftUITextRunPolicyTests: XCTestCase {
+    func testSourceRunsPreserveScalarBoundariesInsideCombinedCharacters() {
+        for (source, splitOffset, expected) in [
+            ("Ae\u{301}Z", 2, ["Ae", "\u{301}Z"]),
+            ("👩\u{200D}💻", 1, ["👩", "\u{200D}💻"])
+        ] {
+            var attributed = AttributedString(source)
+            let split = attributed.unicodeScalars.index(attributed.startIndex, offsetBy: splitOffset)
+            attributed[attributed.startIndex..<split].link = URL(string: "https://example.com")
+            let projected = attributed.runs.map { SwiftUITextRunPolicy.sourceText(in: attributed, range: $0.range) }
+            XCTAssertEqual(projected, expected)
+            XCTAssertEqual(projected.joined(), source)
+            var location: Int64 = 0
+            let runs = projected.map { text -> RuntimeTextRun in
+                defer { location += Int64(text.utf16.count) }
+                return run(text, location: location)
+            }
+            XCTAssertTrue(SwiftUITextRunPolicy.valid(runs))
+            XCTAssertEqual(runs.map(\.range.length), expected.map { Int64($0.utf16.count) })
+        }
+    }
+
     func testRelativeForegroundCannotUseEnvironmentAfterTextOverride() {
         XCTAssertTrue(SwiftUITextRunPolicy.canUseEnvironmentForeground(path: nil))
         XCTAssertTrue(SwiftUITextRunPolicy.canUseEnvironmentForeground(path: "environment/foregroundStyle"))

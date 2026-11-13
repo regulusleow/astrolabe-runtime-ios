@@ -3,6 +3,11 @@ import Foundation
 
 /// Complete source runs only; ranges use UTF-16 units, matching the existing text-run contract.
 enum SwiftUITextRunPolicy {
+    static func sourceText(in attributed: AttributedString, range: Range<AttributedString.Index>) -> String {
+        // Attribute boundaries can split one grapheme; CharacterView would move source scalars between runs.
+        String(String.UnicodeScalarView(attributed[range].unicodeScalars))
+    }
+
     static func canUseEnvironmentForeground(path: String?) -> Bool {
         path == nil || path!.hasPrefix("environment/")
     }
