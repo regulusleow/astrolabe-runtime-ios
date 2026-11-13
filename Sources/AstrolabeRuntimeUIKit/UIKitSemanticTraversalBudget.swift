@@ -1,19 +1,41 @@
 import AstrolabeProtocol
 import Foundation
 
-/// Counts actual visits; an exact boundary is truncated only when more work is attempted.
+/// Counts every work attempt; an exact boundary is truncated only when more work is refused.
 struct UIKitSemanticTraversalBudget {
     /// Exclusive depth boundary.
     let maxDepth: Int
-    /// Maximum visited values or objects.
+    /// Maximum work attempts, including repeats and refused depths.
     let maxVisits: Int
     /// Actual allowed visits.
     private(set) var visits = 0
+    /// Work attempts, including refused objects and invalid depths.
+    private(set) var attempts = 0
     /// Whether pending work was refused.
     private(set) var truncated = false
 
+    /// Whether another object attempt would exceed the work limit.
+    var exhausted: Bool { attempts >= maxVisits }
+
+    enum Admission: Equatable {
+        case accepted, repeated, unsupported, refused
+    }
+
+    mutating func admitObject(_ identity: ObjectIdentifier?, depth: Int,
+                             seen: inout Set<ObjectIdentifier>) -> Admission {
+        guard consume(depth: depth) else { return .refused }
+        guard let identity else { return .unsupported }
+        guard seen.insert(identity).inserted else { return .repeated }
+        return .accepted
+    }
+
     mutating func consume(depth: Int) -> Bool {
-        guard depth >= 0, depth < maxDepth, visits < maxVisits else {
+        guard !exhausted else {
+            truncated = true
+            return false
+        }
+        attempts += 1
+        guard depth >= 0, depth < maxDepth else {
             truncated = true
             return false
         }
@@ -23,10 +45,39 @@ struct UIKitSemanticTraversalBudget {
 
     mutating func markTruncated() { truncated = true }
 
-    /// Child slots are bounded independently of unique object visits, including repeated references.
-    mutating func boundedChildCount(_ totalCount: Int) -> Int {
-        if totalCount > 2_000 { truncated = true }
-        return min(totalCount, 2_000)
+    /// Queued child slots reserve work before another container enumerates its children.
+    mutating func boundedChildCount(_ totalCount: Int, reserved: Int = 0) -> Int {
+        let remaining = max(0, maxVisits - attempts - reserved)
+        if totalCount > remaining { truncated = true }
+        return min(totalCount, remaining)
+    }
+}
+
+/// Capture diagnostics stay bounded while appending, rather than after traversal.
+struct UIKitSemanticIssueBuffer {
+    private struct Key: Hashable {
+        /// Stable namespaced failure identifier.
+        let code: String
+        /// Optional source path, without business values.
+        let path: String?
+    }
+    /// Retained distinct diagnostics in capture order.
+    private(set) var values: [RuntimeInspectionIssue] = []
+    /// Whether a distinct diagnostic exceeded the reserved output capacity.
+    private(set) var truncated = false
+    /// Keys only for retained diagnostics, bounded with the output array.
+    private var keys = Set<Key>()
+
+    mutating func append(_ issue: RuntimeInspectionIssue) {
+        let key = Key(code: issue.code.rawValue, path: issue.path)
+        guard !keys.contains(key) else { return }
+        guard values.count < 1_998 else { truncated = true; return }
+        keys.insert(key)
+        values.append(issue)
+    }
+
+    mutating func append(contentsOf issues: [RuntimeInspectionIssue]) {
+        for issue in issues { append(issue) }
     }
 }
 

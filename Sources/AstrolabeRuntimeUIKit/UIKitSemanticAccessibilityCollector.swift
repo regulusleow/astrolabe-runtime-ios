@@ -29,29 +29,27 @@ struct UIKitSemanticAccessibilityCollector {
     /// Bounded readiness only: no AX value, private attachments, or output objects are read/created.
     func publicSemanticTreeIsReady(in window: UIWindow) -> Bool {
         var budget = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 2_000)
-        var pending: [(object: NSObject, depth: Int)] = [(window, 0)]
+        var pending: [(value: Any?, depth: Int)] = [(window, 0)]
         var seen = Set<ObjectIdentifier>()
         while let entry = pending.popLast() {
-            guard seen.insert(ObjectIdentifier(entry.object)).inserted,
-                  budget.consume(depth: entry.depth) else { continue }
-            let object = entry.object
+            let object = entry.value as? NSObject
+            guard budget.admitObject(object.map(ObjectIdentifier.init), depth: entry.depth, seen: &seen) == .accepted,
+                  let object else { continue }
             if object.isAccessibilityElement || object.accessibilityLabel?.isEmpty == false ||
                 object.accessibilityHint?.isEmpty == false || !UIKitRuntimeAccessibilityMapper().runtimeTraits(object.accessibilityTraits).isEmpty { return true }
-            func enqueue(_ value: Any) {
-                guard let child = value as? NSObject else { return }
-                guard pending.count + budget.visits < 2_000 else { budget.markTruncated(); return }
-                pending.append((child, entry.depth + 1))
+            func enqueue(_ value: Any?) {
+                pending.append((value, entry.depth + 1))
             }
             if let elements = object.accessibilityElements, !elements.isEmpty {
-                for child in elements.prefix(budget.boundedChildCount(elements.count)).reversed() { enqueue(child) }
+                for child in elements.prefix(budget.boundedChildCount(elements.count, reserved: pending.count)).reversed() { enqueue(child) }
             } else {
                 let count = object.accessibilityElementCount()
                 if count != NSNotFound && count > 0 {
-                    for index in (0..<budget.boundedChildCount(count)).reversed() {
-                        if let child = object.accessibilityElement(at: index) { enqueue(child) }
+                    for index in (0..<budget.boundedChildCount(count, reserved: pending.count)).reversed() {
+                        enqueue(object.accessibilityElement(at: index))
                     }
                 } else if let view = object as? UIView {
-                    for child in view.subviews.prefix(budget.boundedChildCount(view.subviews.count)).reversed() { enqueue(child) }
+                    for child in view.subviews.prefix(budget.boundedChildCount(view.subviews.count, reserved: pending.count)).reversed() { enqueue(child) }
                 }
             }
         }
@@ -65,7 +63,8 @@ struct UIKitSemanticAccessibilityCollector {
         var seen = Set<ObjectIdentifier>()
         var details: [RuntimeNodeDetailPayload] = []
         var relations: [RuntimeNodeRelation] = []
-        var issues = privacyIssue.map { [$0] } ?? []
+        var issues = UIKitSemanticIssueBuffer()
+        if let privacyIssue { issues.append(privacyIssue) }
         var semanticCount = 0
         var attachmentObjects = 0
         var outputBytes = 0
@@ -87,12 +86,18 @@ struct UIKitSemanticAccessibilityCollector {
             return value
         }
 
-        func walk(_ object: NSObject, parent: RuntimeOpaqueIdentifier?, sibling: Int, depth: Int) throws -> RuntimeSemanticNode? {
+        func walk(_ value: Any?, parent: RuntimeOpaqueIdentifier?, sibling: Int, depth: Int) throws -> RuntimeSemanticNode? {
             guard !outputStopped else { return nil }
-            guard seen.insert(ObjectIdentifier(object)).inserted else {
+            let object = value as? NSObject
+            switch budget.admitObject(object.map(ObjectIdentifier.init), depth: depth, seen: &seen) {
+            case .refused: return nil
+            case .repeated:
                 issues.append(semanticIssue("repeatedReference")); return nil
+            case .unsupported:
+                issues.append(semanticIssue(value == nil ? "missingChild" : "unsupportedObject")); return nil
+            case .accepted: break
             }
-            guard budget.consume(depth: depth) else { return nil }
+            guard let object else { return nil }
             let nodeID = try RuntimeOpaqueIdentifier(rawValue: prefix + String(budget.visits))
             let label = bounded(object.accessibilityLabel, path: "accessibility.label")
             let value = privacyIssue == nil ? bounded(object.accessibilityValue, path: "accessibility.value") : nil
@@ -186,16 +191,13 @@ struct UIKitSemanticAccessibilityCollector {
                 relations.append(RuntimeNodeRelation(type: semanticName("ios.accessibility.representsView"), sourceNodeID: nodeID, targetNodeID: representedViewID, extensions: try .init()))
             }
             var children: [RuntimeSemanticNode] = []
-            func append(_ child: Any) throws {
-                guard let child = child as? NSObject else {
-                    issues.append(semanticIssue("unsupportedObject")); return
-                }
+            func append(_ child: Any?) throws {
                 if let node = try walk(child, parent: nodeID, sibling: children.count, depth: depth + 1) { children.append(node) }
             }
             if let elements = object.accessibilityElements, !elements.isEmpty {
                 for (index, child) in elements.prefix(budget.boundedChildCount(elements.count)).enumerated() {
                     try append(child)
-                    if outputStopped || budget.visits == 2_000 {
+                    if outputStopped || budget.exhausted {
                         if index + 1 < elements.count { budget.markTruncated() }
                         break
                     }
@@ -204,9 +206,8 @@ struct UIKitSemanticAccessibilityCollector {
                 let count = object.accessibilityElementCount()
                 if count != NSNotFound && count > 0 {
                     for index in 0..<budget.boundedChildCount(count) {
-                        if let child = object.accessibilityElement(at: index) { try append(child) }
-                        else { issues.append(semanticIssue("missingChild")) }
-                        if outputStopped || budget.visits == 2_000 {
+                        try append(object.accessibilityElement(at: index))
+                        if outputStopped || budget.exhausted {
                             if index + 1 < count { budget.markTruncated() }
                             break
                         }
@@ -214,7 +215,7 @@ struct UIKitSemanticAccessibilityCollector {
                 } else if let view = object as? UIView {
                     for (index, child) in view.subviews.prefix(budget.boundedChildCount(view.subviews.count)).enumerated() {
                         try append(child)
-                        if outputStopped || budget.visits == 2_000 {
+                        if outputStopped || budget.exhausted {
                             if index + 1 < view.subviews.count { budget.markTruncated() }
                             break
                         }
@@ -226,16 +227,11 @@ struct UIKitSemanticAccessibilityCollector {
                 availableDetailCategories: ownNode.availableDetailCategories, children: children)
         }
         let root = try walk(window, parent: nil, sibling: 0, depth: 0)
-        if budget.truncated { issues.append(semanticIssue("budgetExceeded")) }
-        // Capture-level diagnostics are deduplicated; per-node contexts retain their paths.
-        var unique: [RuntimeInspectionIssue] = []
-        for issue in issues where !unique.contains(issue) {
-            guard unique.count < 1_998 else { budget.markTruncated(); break }
-            unique.append(issue)
-        }
+        if issues.truncated { budget.markTruncated() }
+        var unique = issues.values
         if budget.truncated && !unique.contains(semanticIssue("budgetExceeded")) { unique.append(semanticIssue("budgetExceeded")) }
         return Capture(roots: root.map { [$0] } ?? [], details: details, relations: relations,
-                       issues: unique, visits: budget.visits, semanticCount: semanticCount, truncated: budget.truncated || attachmentBudget.truncated)
+                       issues: unique, visits: seen.count, semanticCount: semanticCount, truncated: budget.truncated || attachmentBudget.truncated)
     }
 
     private func nativeRole(for object: NSObject) -> String? {

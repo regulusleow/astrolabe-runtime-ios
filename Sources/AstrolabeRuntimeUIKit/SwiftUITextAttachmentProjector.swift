@@ -46,7 +46,7 @@ enum SwiftUITextAttachmentProjector {
             let entry = pending[cursor]
             cursor += 1
             guard local.consume(depth: entry.depth), budget.consume(depth: entry.depth) else {
-                if local.visits >= local.maxVisits || budget.visits >= budget.maxVisits { break }
+                if local.exhausted || budget.exhausted { break }
                 continue
             }
             let typeName = String(reflecting: type(of: entry.value))

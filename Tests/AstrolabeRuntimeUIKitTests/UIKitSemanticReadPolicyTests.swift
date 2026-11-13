@@ -249,7 +249,7 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
         var budget = UIKitSemanticTraversalBudget(maxDepth: 20, maxVisits: 2_000)
         XCTAssertTrue(budget.consume(depth: 0))
         XCTAssertTrue(budget.consume(depth: 1))
-        XCTAssertEqual(budget.boundedChildCount(2_002), 2_000)
+        XCTAssertEqual(budget.boundedChildCount(2_002), 1_998)
         XCTAssertTrue(budget.truncated)
         XCTAssertEqual(budget.visits, 2)
     }
