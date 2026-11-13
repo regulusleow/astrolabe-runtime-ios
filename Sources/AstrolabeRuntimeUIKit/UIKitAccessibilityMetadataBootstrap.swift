@@ -9,11 +9,11 @@ enum UIKitAccessibilityMetadataBootstrap {
     static func prepare() {
         #if os(iOS) && arch(arm64) && !targetEnvironment(macCatalyst)
         let version = ProcessInfo.processInfo.operatingSystemVersion
-        // shortcut: verified on 27.0 simulators and 27.2 devices; validate other targets before widening.
+        // shortcut: verified on 27.0 simulators/devices and 27.2 devices; validate other targets before widening.
         #if targetEnvironment(simulator)
         guard version.majorVersion == 27, version.minorVersion == 0 else { return }
         #else
-        guard version.majorVersion == 27, version.minorVersion == 2,
+        guard version.majorVersion == 27, [0, 2].contains(version.minorVersion),
               !ProcessInfo.processInfo.isiOSAppOnMac else { return }
         #endif
         _ = initialization

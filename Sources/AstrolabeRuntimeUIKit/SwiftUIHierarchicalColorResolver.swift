@@ -10,7 +10,8 @@ import UIKit
 enum SwiftUIHierarchicalColorResolver {
     /// ABI and palette checks also require the exact validated architecture and native iOS environment.
     private static var isSupportedPlatform: Bool {
-        #if arch(arm64)
+        #if arch(arm64) && !targetEnvironment(macCatalyst)
+        guard !ProcessInfo.processInfo.isiOSAppOnMac else { return false }
         let version = ProcessInfo.processInfo.operatingSystemVersion
         #if targetEnvironment(simulator)
         let simulator = true

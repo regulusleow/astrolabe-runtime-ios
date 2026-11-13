@@ -14,7 +14,8 @@ enum SwiftUIEnvironmentForegroundStyleAccess {
 
     static func read(_ environment: EnvironmentValues, local: inout UIKitSemanticTraversalBudget,
                      budget: inout UIKitSemanticTraversalBudget) -> Reading? {
-        #if arch(arm64)
+        #if arch(arm64) && !targetEnvironment(macCatalyst)
+        guard !ProcessInfo.processInfo.isiOSAppOnMac else { return nil }
         let version = ProcessInfo.processInfo.operatingSystemVersion
         #if targetEnvironment(simulator)
         let simulator = true

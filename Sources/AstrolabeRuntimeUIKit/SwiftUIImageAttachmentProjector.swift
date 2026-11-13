@@ -17,9 +17,15 @@ enum SwiftUIImageAttachmentProjector {
     }
 
     private static var supportsCurrentLayout: Bool {
-        #if arch(arm64) && targetEnvironment(simulator)
+        #if arch(arm64) && !targetEnvironment(macCatalyst)
         let version = ProcessInfo.processInfo.operatingSystemVersion
-        return SwiftUIImageMetadataPolicy.supportsLayout(major: version.majorVersion, minor: version.minorVersion, simulator: true)
+        #if targetEnvironment(simulator)
+        let simulator = true
+        #else
+        guard !ProcessInfo.processInfo.isiOSAppOnMac else { return false }
+        let simulator = false
+        #endif
+        return SwiftUIImageMetadataPolicy.supportsLayout(major: version.majorVersion, minor: version.minorVersion, simulator: simulator)
         #else
         return false
         #endif

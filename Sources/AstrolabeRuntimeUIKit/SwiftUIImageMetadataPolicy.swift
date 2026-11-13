@@ -47,5 +47,5 @@ enum SwiftUIImageMetadataPolicy {
 
     static func validWrapperCount(_ count: Int) -> Bool { (0...maximumWrappers).contains(count) }
 
-    static func supportsLayout(major: Int, minor: Int, simulator: Bool) -> Bool { major == 27 && minor == 0 && simulator }
+    static func supportsLayout(major: Int, minor: Int, simulator: Bool) -> Bool { major == 27 && minor == 0 }
 }

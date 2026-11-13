@@ -25,9 +25,10 @@ enum SwiftUITextRunProjector {
         var colorPath: String?
     }
 
-    /// shortcut: storage fields are verified on iOS27.0 arm64 simulators; validate other targets before widening.
+    /// shortcut: storage fields are verified on iOS27.0 arm64 simulators/devices; validate other targets before widening.
     private static var supportsCurrentLayout: Bool {
-        #if arch(arm64) && targetEnvironment(simulator)
+        #if arch(arm64) && !targetEnvironment(macCatalyst)
+        guard !ProcessInfo.processInfo.isiOSAppOnMac else { return false }
         let version = ProcessInfo.processInfo.operatingSystemVersion
         return version.majorVersion == 27 && version.minorVersion == 0
         #else

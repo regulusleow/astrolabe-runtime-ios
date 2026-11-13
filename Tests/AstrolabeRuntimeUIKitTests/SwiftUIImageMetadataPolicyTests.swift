@@ -56,7 +56,8 @@ final class SwiftUIImageMetadataPolicyTests: XCTestCase {
 
     func testUnverifiedPlatformsDoNotUseTheImageLayout() {
         XCTAssertTrue(SwiftUIImageMetadataPolicy.supportsLayout(major: 27, minor: 0, simulator: true))
-        for values in [(27, 0, false), (27, 2, true), (27, 2, false), (26, 0, true), (28, 0, true)] {
+        XCTAssertTrue(SwiftUIImageMetadataPolicy.supportsLayout(major: 27, minor: 0, simulator: false))
+        for values in [(27, 1, false), (27, 2, true), (27, 2, false), (26, 0, true), (28, 0, true)] {
             XCTAssertFalse(SwiftUIImageMetadataPolicy.supportsLayout(major: values.0, minor: values.1, simulator: values.2))
         }
     }

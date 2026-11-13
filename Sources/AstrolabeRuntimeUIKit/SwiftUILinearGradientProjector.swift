@@ -6,12 +6,18 @@ import SwiftUI
 @available(iOS 17.0, *)
 @MainActor
 enum SwiftUILinearGradientProjector {
-    /// shortcut: gradient fields are verified on iOS 27.0 arm64 simulators; validate other targets before widening.
+    /// shortcut: gradient fields are verified on iOS 27.0 arm64 simulators/devices; validate other targets before widening.
     private static var supportsCurrentLayout: Bool {
-        #if arch(arm64) && targetEnvironment(simulator)
+        #if arch(arm64) && !targetEnvironment(macCatalyst)
         let version = ProcessInfo.processInfo.operatingSystemVersion
+        #if targetEnvironment(simulator)
+        let simulator = true
+        #else
+        guard !ProcessInfo.processInfo.isiOSAppOnMac else { return false }
+        let simulator = false
+        #endif
         return SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: version.majorVersion,
-            minor: version.minorVersion, simulator: true)
+            minor: version.minorVersion, simulator: simulator)
         #else
         return false
         #endif

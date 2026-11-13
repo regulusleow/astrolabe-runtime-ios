@@ -58,7 +58,7 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
 
     func testLinearGradientLayoutDoesNotExpandExistingTextPlatformSupport() {
         XCTAssertTrue(SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: 27, minor: 0, simulator: true))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: 27, minor: 0, simulator: false))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: 27, minor: 0, simulator: false))
         for simulator in [false, true] {
             for (major, minor) in [(26, 0), (27, 1), (27, 2), (28, 0)] {
                 XCTAssertFalse(SwiftUITextMetadataPolicy.supportsLinearGradientLayout(major: major, minor: minor, simulator: simulator))
@@ -69,7 +69,7 @@ final class UIKitSemanticReadPolicyTests: XCTestCase {
     func testHierarchyLayoutRejectsUnverifiedOSAndDeviceCombinations() {
         XCTAssertTrue(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 0, simulator: true))
         XCTAssertTrue(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 2, simulator: false))
-        XCTAssertFalse(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 0, simulator: false))
+        XCTAssertTrue(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 0, simulator: false))
         XCTAssertFalse(SwiftUITextMetadataPolicy.supportsHierarchyLayout(major: 27, minor: 2, simulator: true))
         for simulator in [false, true] {
             for (major, minor) in [(26, 0), (27, 1), (27, 3), (28, 0)] {

@@ -94,7 +94,7 @@ enum SwiftUITextMetadataPolicy {
     }
 
     static func supportsLinearGradientLayout(major: Int, minor: Int, simulator: Bool) -> Bool {
-        major == 27 && minor == 0 && simulator
+        major == 27 && minor == 0
     }
 
     static var supportsCurrentLayout: Bool {
@@ -113,7 +113,7 @@ enum SwiftUITextMetadataPolicy {
 
     /// shortcut: hierarchy/palette evidence covers these targets only; validate others before widening.
     static func supportsHierarchyLayout(major: Int, minor: Int, simulator: Bool) -> Bool {
-        major == 27 && ((minor == 0 && simulator) || (minor == 2 && !simulator))
+        major == 27 && (minor == 0 || (minor == 2 && !simulator))
     }
 
     static func isColorBox(_ type: String) -> Bool {

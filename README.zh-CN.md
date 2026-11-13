@@ -46,37 +46,41 @@ Runtime 不判断 `DEBUG`，也不识别业务工程的构建配置名称。只�
 - 对受支持的文本、字体、颜色、Alpha、边框、圆角、阴影和已标识的 Auto Layout 约束值应用白名单内
   的内存临时表现补丁。
 
-SwiftUI 文本检查目前覆盖经 iOS 27.0 模拟器和 iOS 27.2 arm64 真机验证的有限路径。
+SwiftUI 文本检查目前覆盖经 iOS 27.0 arm64 模拟器/真机和 iOS 27.2 arm64 真机验证的有限路径。
 这些是验证环境，不是整个 Package 的最低系统要求。上述平台的语义采集会准备 App 内的无障碍元数据，
 不更改无障碍设置，也不发送状态通知。已验证的 Text attachment 支持字体和显式纯前景色；
 继承纯色支持已确认的单条环境记录，包括颜色透明度和子节点覆盖。
-继承 tint、secondary 和 tertiary 支持已在 iOS 27.0 arm64 模拟器与 iOS 27.2 arm64 真机上验证，
+继承 tint、secondary 和 tertiary 支持已在 iOS 27.0 arm64 模拟器/真机与 iOS 27.2 arm64 真机上验证，
 包括深浅色及增加对比度下的默认系统色。未知私有布局只使对应属性不可用；
 UIKit 和 Core Animation 检查保留各自的平台要求。
 
-iOS 27.0 arm64 模拟器还验证了 Text 直接调用 `.foregroundStyle(.tint)`、
+iOS 27.0 arm64 模拟器/真机还验证了 Text 直接调用 `.foregroundStyle(.tint)`、
 `.foregroundStyle(.secondary)` 和 `.foregroundStyle(.tertiary)`，复用当前显式 tint、
 父级纯色或调色板，并随深浅色及增加对比度变化。无法证明的默认 tint、未知父样式或
 嵌套层级不会导出颜色。
 
-同一模拟器范围还支持已验证的拼接 Text 和 AttributedString 源分段，通过
+同一 iOS 27.0 范围还支持已验证的拼接 Text 和 AttributedString 源分段，通过
 `ios.swiftui.text.attributedTextRuns` 复用现有 typed text-run 值，保留 UTF-16 范围、文字、
 已确认的字体名/字号、纯色及来源路径。某段样式不会被提升为整个节点的样式。
 超过 64 段或总文字超过 16 KiB UTF-8 时整组拒绝。本地化拼接及未知修饰器保持不可用；
 未验证的框架属性作用域、依赖父级样式的路径使对应字段缺失。这些是源分段，不代表最终
 glyph 布局或字符回退字体。
 
-iOS 27.0 arm64 模拟器还支持已验证的 Text 直接及继承 `LinearGradient` 前景样式，通过
+iOS 27.0 arm64 模拟器/真机还支持已验证的 Text 直接及继承 `LinearGradient` 前景样式，通过
 `ios.swiftui.text.foregroundStyle` 导出最多 32 个有序色标和单位空间起止点。这些是源样式参数，
 不是像素采样。其他渐变、未知包装，以及无法确定覆盖顺序的直接 Color/样式组合仍不可用；
 原有单色属性独立保留。
 
-同一 iOS 27.0 arm64 模拟器范围还支持图片语义节点的 `ios.swiftui.image.metadata`，
+同一 iOS 27.0 arm64 模拟器/真机范围还支持图片语义节点的 `ios.swiftui.image.metadata`，
 冻结唯一原始 Image 的源参数：存在时的符号/资源名、UIImage 点尺寸/scale、可用的 CGImage
 像素尺寸，以及按外到内排列的已验证渲染/拉伸修饰器。最多接受四层修饰器；未知包装、原始来源
 歧义或非法值使整份图片元数据缺失。显式 nil 模式保留为 null，环境 imageScale 和可选符号
 渲染模式单独记录。资源名不取自缓存标签，也不重新加载资源推测尺寸。这些源事实独立于节点
 frame、像素采样、最终符号颜色及 fit/fill 或裁剪几何。无障碍树中不存在的装饰图片不会新增节点。
+
+真机完整链路已在 iPhone 12 / iOS 27.0 (24A437) 验证：USB 发现、兼容性、语义抓取、真机截图、
+外观/内容更新、详情冻结，以及已填安全输入时的元数据抑制。渐变、源分段和图片元数据仍未开放
+iOS 27.2 真机，等待对应设备验证。上述原生 ABI 路径排除 Mac Catalyst 和 Mac 上运行的 iOS App。
 
 补丁不会修改源代码、App 二进制文件、业务模型或持久化存储。补丁在 Host 重新连接后仍然有效，并在
 Runtime 停止或 App 进程退出时失效。
