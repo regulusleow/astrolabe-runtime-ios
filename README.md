@@ -2,10 +2,10 @@
 
 English | [简体中文](README.zh-CN.md)
 
-Astrolabe Runtime for iOS exposes UIKit and Core Animation inspection data to
-the Astrolabe Host so Agents can inspect UI in Debug builds. Linking the dynamic framework is the
-complete integration: the Runtime starts automatically when an eligible
-application process loads it.
+Astrolabe Runtime for iOS exposes UIKit, Core Animation, and SwiftUI inspection
+data to the Astrolabe Host so agents can inspect UI in Debug builds. Link and
+embed the dynamic framework to integrate; the Runtime starts automatically when
+an eligible application process loads it.
 
 Current package release: `2.2.0`.
 
@@ -40,70 +40,31 @@ The Runtime does not inspect `DEBUG` or application configuration names.
 Linking and embedding the product enables it in any build configuration, so
 configure the dependency and embedding in your Debug target.
 
+Keep the app running in the foreground while inspecting it through the Host.
+
 ## Capabilities
 
 - Simulator and paired USB Runtime discovery.
 - UIKit and Core Animation hierarchy collection.
 - Frames, visibility, accessibility, text, typography, colors, borders,
   shadows, control state, images, and Auto Layout metadata.
-- Node-detail lookup through stable opaque identifiers.
+- Node-detail lookup through opaque identifiers.
 - Allowlisted, in-memory presentation patches for supported text, font, color,
   alpha, border, corner, shadow, and identified Auto Layout constraint values.
-
-SwiftUI text inspection has a bounded scope verified on iOS 27.0 arm64 simulators/devices and
-iOS 27.2 arm64 devices. These are verification environments, not the package's
-minimum OS requirement. On these platforms, semantic capture prepares app-local accessibility
-metadata without changing accessibility settings or posting status notifications.
-Verified Text attachments expose fonts and explicit pure foreground colors;
-inherited pure colors also support verified singleton environment entries on these
-platforms, including color opacity and child overrides. Inherited tint, secondary and
-tertiary styles are verified on iOS 27.0 arm64 simulators/devices and iOS 27.2 arm64 devices,
-including default palettes in light/dark appearance and increased contrast.
-Unknown private layouts leave the affected attributes unavailable; UIKit and
-Core Animation inspection retain their own platform requirements.
-
-On iOS 27.0 arm64 simulators/devices, direct Text `.foregroundStyle(.tint)`,
-`.foregroundStyle(.secondary)` and `.foregroundStyle(.tertiary)` are also verified.
-They reuse the current explicit tint, parent pure color or palette, including
-light/dark appearance and increased contrast. An unproven default tint, unknown
-parent style or nested hierarchy leaves the color unavailable.
-
-The same iOS 27.0 scope also exposes verified concatenated Text and
-AttributedString source runs as `ios.swiftui.text.attributedTextRuns`, using the
-existing typed text-run value. Runs preserve UTF-16 ranges, text, proven font
-name/size, pure color and source paths; one segment's style is never promoted as
-the whole node's style. Groups exceeding 64 runs or 16 KiB of UTF-8 text are
-refused in full. Localized concatenation and unknown modifiers are unavailable;
-unverified framework scopes and parent-dependent styles leave affected fields
-missing. These source runs do not describe final glyph layout or fallback fonts.
-
-On iOS 27.0 arm64 simulators/devices, verified direct Text and inherited `LinearGradient`
-foreground styles expose up to 32 ordered color stops and unit-space endpoints
-as `ios.swiftui.text.foregroundStyle`. These are source parameters, not sampled
-pixels. Other gradient kinds, unknown wrappers and conflicting direct Color/style
-modifiers remain unavailable; the existing single-color attribute stays separate.
-
-On the same iOS 27.0 arm64 simulator/device scope, verified semantic image nodes expose
-`ios.swiftui.image.metadata`. It freezes one original Image's source parameters:
-symbol/resource names where present, UIImage point size/scale and available
-CGImage pixel size, and verified rendering/resizing modifiers in outer-to-inner
-order. Up to four modifier providers are accepted; unknown wrappers, ambiguous
-original sources and invalid values refuse the whole metadata object. Explicit
-nil modes remain null. Environment image scale and optional symbol rendering mode
-are recorded separately. Cached labels never supply resource names, and named
-images are not reloaded to infer sizes. These are source facts, distinct from the
-node frame, sampled pixels, final symbol colors and fit/fill or clipping geometry.
-Decorative images absent from accessibility do not gain synthetic nodes.
-
-Device chain validation covers iPhone 12 on iOS 27.0 (24A437): USB discovery,
-compatible semantic capture and physical screenshots, appearance/content updates,
-frozen details and populated secure-input suppression. Gradient, source-run and
-image metadata profiles remain disabled on iOS 27.2 pending device validation.
-Mac Catalyst and iOS apps running on Mac are excluded from these native ABI paths.
 
 Patches never modify source code, the App binary, application models, or
 persistent storage. They remain active across Host reconnections and are
 discarded when the Runtime stops or the App process exits.
+
+### SwiftUI
+
+SwiftUI inspection supports:
+
+- Text content, font names and sizes, and explicit or inherited foreground colors,
+  including `tint`, `secondary`, and `tertiary` styles.
+- Linear-gradient colors and endpoints.
+- Concatenated `Text` and `AttributedString` segments with their own fonts and colors.
+- Image and SF Symbol source names, source dimensions, and rendering/resizing options.
 
 ## Architecture
 
