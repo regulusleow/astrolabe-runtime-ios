@@ -85,6 +85,8 @@ extension RuntimeAttributeIdentifier {
     static let enabled = iosAttribute("control.enabled")
     static let selected = iosAttribute("control.selected")
     static let highlighted = iosAttribute("control.highlighted")
+    /// UISwitch state, independent of UIControl selection.
+    static let isOn = iosAttribute("control.isOn")
     static let text = iosAttribute("label.text")
     static let attributedTextRuns = iosAttribute("label.attributedTextRuns")
     static let adjustsFontSizeToFitWidth = iosAttribute("label.adjustsFontSizeToFitWidth")
