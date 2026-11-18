@@ -72,13 +72,16 @@ enum SwiftUIEnvironmentColorReader {
                   ["SwiftUI.ShapeStylePair<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>",
                    "SwiftUI.ShapeStyleTriple<SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle, SwiftUI.AnyShapeStyle>"].contains(String(reflecting: type(of: pack))),
                   local.consume(depth: selected.depth + 2), budget.consume(depth: selected.depth + 2) else { return nil }
-            // A pair reuses its secondary at level2; a triple has an explicit tertiary.
-            let name = hierarchyLevel == 2 && String(reflecting: type(of: pack)).hasPrefix("SwiftUI.ShapeStyleTriple<") ? "tertiary" : "secondary"
+            // Direct Text attenuates primary; inherited styles select a palette entry.
+            let name = requestedLevel != 0 ? "primary" :
+                (hierarchyLevel == 2 && String(reflecting: type(of: pack)).hasPrefix("SwiftUI.ShapeStyleTriple<") ? "tertiary" : "secondary")
             guard let style = field(pack, name, depth: selected.depth + 2) as? AnyShapeStyle,
                   let box = unboxStyle(style, path: selected.path + "/base/" + name, depth: selected.depth + 2) else { return nil }
             selected = box
-            hierarchyPath = nil
-            hierarchyLevel = 0
+            if requestedLevel == 0 {
+                hierarchyPath = nil
+                hierarchyLevel = 0
+            }
         }
         if SwiftUITextMetadataPolicy.isTintStyleBox(String(reflecting: type(of: selected.value))) {
             guard Mirror(reflecting: selected.value).superclassMirror.map({ String(reflecting: $0.subjectType) }) == "SwiftUI.AnyShapeStyleBox",
