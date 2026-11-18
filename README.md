@@ -65,16 +65,17 @@ SwiftUI inspection supports:
 - Linear-gradient colors and endpoints.
 - Concatenated `Text` and `AttributedString` segments with their own fonts and colors.
 - Image and SF Symbol source names, source dimensions, and rendering/resizing options.
+- Basic text visibility, including opacity, screen bounds, and rectangular clipping.
 
 ## Architecture
 
 | Target | Responsibility |
 | --- | --- |
 | `AstrolabeRuntimeCore` | Protocol server, routing, sessions, transport, node registry, and platform-independent patch coordination. |
-| `AstrolabeRuntimeUIKit` | UIKit and Core Animation collection, attributes, layout, accessibility, and allowlisted mutations. |
+| `AstrolabeRuntimeUIKit` | UIKit and Core Animation collection, attributes, layout, accessibility, and allowlisted mutations; SwiftUI semantic inspection. |
 | `AstrolabeRuntime` | Automatic installer, process lifecycle coordination, SDK metadata, and dependency composition. |
 | `AstrolabeRuntimeBootstrap` | Objective-C dynamic-framework load hook with no public lifecycle API. |
-| `AstrolabeRuntimeObjC` | Objective-C Runtime metadata adapter used by UIKit collection. |
+| `AstrolabeRuntimeObjC` | Objective-C Runtime metadata adapter and SwiftUI runtime access bridges. |
 
 The package implements the platform-neutral Wire Protocol from
 `astrolabe-protocol`. iOS-specific collection, mapping, lifecycle, and port

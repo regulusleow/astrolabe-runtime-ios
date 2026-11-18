@@ -58,16 +58,17 @@ SwiftUI 支持以下界面信息检查：
 - 线性渐变的颜色与起止点。
 - 拼接 `Text` 和 `AttributedString` 的文字分段及各段字体、颜色。
 - Image 和 SF Symbol 的源名称、源尺寸，以及渲染和拉伸参数。
+- 文本节点的基础可见性，包括透明度、屏幕范围和矩形裁剪。
 
 ## 架构
 
 | Target | 职责 |
 | --- | --- |
 | `AstrolabeRuntimeCore` | 协议服务、路由、Session、Transport、节点注册表和平台无关补丁协调。 |
-| `AstrolabeRuntimeUIKit` | UIKit 和 Core Animation 采集、属性、布局、无障碍信息及白名单内的修改操作。 |
+| `AstrolabeRuntimeUIKit` | UIKit 和 Core Animation 采集、属性、布局、无障碍信息及白名单内的修改操作；SwiftUI 语义检查。 |
 | `AstrolabeRuntime` | 自动安装器、进程生命周期协调、SDK 元数据和依赖组装。 |
 | `AstrolabeRuntimeBootstrap` | 不暴露公共生命周期 API 的 Objective-C dynamic Framework 加载入口。 |
-| `AstrolabeRuntimeObjC` | UIKit 采集使用的 Objective-C Runtime 元数据适配器。 |
+| `AstrolabeRuntimeObjC` | Objective-C Runtime 元数据适配器和 SwiftUI 运行时访问桥接。 |
 
 该 Package 实现 `astrolabe-protocol` 定义的平台无关 Wire Protocol。iOS 特有的数据采集、映射、
 生命周期和端口选择保留在本仓库中。
