@@ -235,6 +235,11 @@ enum SwiftUITextMetadataPolicy {
         hasFormatting == false && argumentsType == "Swift.Array<SwiftUI.LocalizedStringKey.FormatArgument>" && argumentsAreEmpty == true
     }
 
+    static func isNonTextScrollableProperty(keyType: String, valueType: String) -> Bool {
+        keyType == "SwiftUI.AccessibilityProperties.ScrollableContextKey.Type" &&
+            valueType == "Swift.Optional<SwiftUI.AccessibilityScrollableContext>"
+    }
+
     static func canIgnoreField(container: String, field: String?, type: String,
                                isEmptyCollection: Bool? = nil, booleanValue: Bool? = nil) -> Bool {
         guard let field else { return false }

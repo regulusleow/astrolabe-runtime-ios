@@ -162,6 +162,16 @@ enum SwiftUITextAttachmentProjector {
                 }
             }
             let children = Array(mirror.children.prefix(51))
+            if typeName.hasPrefix("SwiftUI.AccessibilityProperties."), typeName.hasSuffix(".Entry"),
+               children.count == 2,
+               let key = children.first(where: { $0.label == "key" }),
+               let value = children.first(where: { $0.label == "value" }),
+               SwiftUITextMetadataPolicy.isNonTextScrollableProperty(
+                   keyType: String(reflecting: type(of: key.value)),
+                   valueType: String(reflecting: type(of: value.value))) {
+                // Scroll identity belongs to the container, not to another Text scope.
+                continue
+            }
             if typeName == "SwiftUI.LocalizedStringKey" {
                 let formattingValue = children.prefix(50).first { $0.label == "hasFormatting" }?.value
                 let formatting = formattingValue.flatMap { String(reflecting: type(of: $0)) == "Swift.Bool" ? $0 as? Bool : nil }

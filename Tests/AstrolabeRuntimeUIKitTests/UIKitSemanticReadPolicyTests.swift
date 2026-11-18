@@ -3,6 +3,20 @@ import XCTest
 
 /// Pure read-policy tests; no UIView, application, or UI runtime is created.
 final class UIKitSemanticReadPolicyTests: XCTestCase {
+    func testScrollableIdentityDoesNotHideUnknownTextProperties() {
+        let key = "SwiftUI.AccessibilityProperties.ScrollableContextKey.Type"
+        let value = "Swift.Optional<SwiftUI.AccessibilityScrollableContext>"
+        XCTAssertTrue(SwiftUITextMetadataPolicy.isNonTextScrollableProperty(keyType: key, valueType: value))
+        for (keyType, valueType) in [
+            (key, "Swift.Optional<SwiftUI.Text>"),
+            ("SwiftUI.AccessibilityProperties.LabelKey.Type", value),
+            (key, "SwiftUI.AccessibilityScrollableContext"),
+            ("Other.ScrollableContextKey.Type", value)
+        ] {
+            XCTAssertFalse(SwiftUITextMetadataPolicy.isNonTextScrollableProperty(keyType: keyType, valueType: valueType))
+        }
+    }
+
     func testDirectHierarchyBoxRequiresExactOwnerAndStyle() {
         XCTAssertTrue(SwiftUITextMetadataPolicy.isDirectHierarchyBox("SwiftUI.(unknown context at $1c7b36b5c).ShapeStyleBox<SwiftUI.HierarchicalShapeStyle>"))
         for type in ["Other.(unknown context at $1).ShapeStyleBox<SwiftUI.HierarchicalShapeStyle>",
