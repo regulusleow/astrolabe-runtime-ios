@@ -69,9 +69,10 @@ struct UIKitSemanticAccessibilityCollector {
         var attachmentObjects = 0
         var outputBytes = 0
         var outputStopped = false
-        var renderIDs = Set<RuntimeOpaqueIdentifier>()
-        func index(_ node: RuntimeNode) { renderIDs.insert(node.nodeID); node.children.forEach(index) }
+        var renderVisibility: [RuntimeOpaqueIdentifier: RuntimeNodeVisibility] = [:]
+        func index(_ node: RuntimeNode) { renderVisibility[node.nodeID] = node.visibility; node.children.forEach(index) }
         renderRoots.forEach(index)
+        let swiftUIVisibility = SwiftUIBasicVisibilityReader(window: window)
         let prefix = "semantic-" + UUID().uuidString + "-"
         let nativeDetails = UIKitRuntimeAttributeCollectorRegistry(
             nodeRegistry: registry,
@@ -152,13 +153,17 @@ struct UIKitSemanticAccessibilityCollector {
             if let section = try UIKitSemanticAccessibilityFacts.section(for: ax) { sections.append(section) }
             if !attributes.isEmpty { sections.append(.init(category: try .init(rawValue: role == "image" ? "ios.swiftui.image" : "common.text"), attributes: attributes)) }
             var representedViewID: RuntimeOpaqueIdentifier?
+            var visibility: RuntimeNodeVisibility?
             if let view = object as? UIView {
                 let nativeID = registry.nodeID(for: view)
-                if renderIDs.contains(nativeID) {
+                if let capturedVisibility = renderVisibility[nativeID] {
                     representedViewID = nativeID
+                    visibility = capturedVisibility
                     // Freeze only the same captured UIView's control/scroll facts, never a nearby view's.
                     sections.append(contentsOf: nativeDetails.sections(for: view))
                 }
+            } else if privacyIssue == nil {
+                visibility = swiftUIVisibility.visibility(for: object)
             }
             let detail = RuntimeNodeDetailPayload(nodeID: nodeID,
                 sections: sections,
@@ -174,6 +179,7 @@ struct UIKitSemanticAccessibilityCollector {
             let runtimeType = RuntimeType(name: typeName, ancestors: [])
             let ownNode = try RuntimeSemanticNode(nodeID: nodeID, parentID: parent, siblingIndex: sibling, role: role,
                 runtimeType: runtimeType, accessibility: ax, frameInScreen: validFrame ? runtimeRect(frame, space: .screen) : nil,
+                visibility: visibility,
                 availableDetailCategories: sections.map { semanticName($0.category.rawValue) }, children: [])
             let ownBytes = try JSONEncoder().encode(ownNode).count + JSONEncoder().encode(detail).count
             let alreadyCounted = outputBytes - projectionStartBytes
@@ -224,6 +230,7 @@ struct UIKitSemanticAccessibilityCollector {
             }
             return try RuntimeSemanticNode(nodeID: ownNode.nodeID, parentID: parent, siblingIndex: sibling, role: role,
                 runtimeType: runtimeType, accessibility: ax, frameInScreen: ownNode.frameInScreen,
+                visibility: ownNode.visibility,
                 availableDetailCategories: ownNode.availableDetailCategories, children: children)
         }
         let root = try walk(window, parent: nil, sibling: 0, depth: 0)
