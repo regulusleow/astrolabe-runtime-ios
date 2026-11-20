@@ -26,6 +26,12 @@ final class SwiftUITextRunPolicyTests: XCTestCase {
         }
     }
 
+    func testAttributedTextBudgetCountsUTF8BytesAcrossScalars() {
+        let text = AttributedString("x\u{301}😀")
+        XCTAssertTrue(SwiftUITextRunPolicy.fitsTextBudget(text, remainingBytes: 7))
+        XCTAssertFalse(SwiftUITextRunPolicy.fitsTextBudget(text, remainingBytes: 6))
+    }
+
     func testRelativeForegroundCannotUseEnvironmentAfterTextOverride() {
         XCTAssertTrue(SwiftUITextRunPolicy.canUseEnvironmentForeground(path: nil))
         XCTAssertTrue(SwiftUITextRunPolicy.canUseEnvironmentForeground(path: "environment/foregroundStyle"))

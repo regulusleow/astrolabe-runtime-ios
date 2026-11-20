@@ -156,7 +156,7 @@ enum SwiftUITextRunProjector {
             let storagePath = path + "/storage/anyTextStorage"
             if type == "SwiftUI.AttributedStringTextStorage" {
                 guard children.count == 1, children[0].label == "str", let attributed = children[0].value as? AttributedString else { return false }
-                guard attributed.utf8.prefix(SwiftUITextRunPolicy.maximumUTF8Bytes + 1).count <= SwiftUITextRunPolicy.maximumUTF8Bytes else {
+                guard SwiftUITextRunPolicy.fitsTextBudget(attributed, remainingBytes: SwiftUITextRunPolicy.maximumUTF8Bytes - bytes) else {
                     local.markTruncated(); return false
                 }
                 for (index, run) in attributed.runs.enumerated() {

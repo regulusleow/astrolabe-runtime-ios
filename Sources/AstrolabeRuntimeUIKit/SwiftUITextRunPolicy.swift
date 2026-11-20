@@ -8,6 +8,15 @@ enum SwiftUITextRunPolicy {
         String(String.UnicodeScalarView(attributed[range].unicodeScalars))
     }
 
+    static func fitsTextBudget(_ text: AttributedString, remainingBytes: Int) -> Bool {
+        var remaining = remainingBytes
+        for scalar in text.unicodeScalars {
+            remaining -= scalar.utf8.count
+            if remaining < 0 { return false }
+        }
+        return true
+    }
+
     static func canUseEnvironmentForeground(path: String?) -> Bool {
         path == nil || path!.hasPrefix("environment/")
     }
