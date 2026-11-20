@@ -42,6 +42,12 @@ configure the dependency and embedding in your Debug target.
 
 Keep the app running in the foreground while inspecting it through the Host.
 
+## Native macOS Debug apps
+
+On macOS 15 or later, link and embed the same dynamic `AstrolabeRuntime` product in your AppKit Debug target. It starts automatically and listens on loopback. For a sandboxed Debug target, enable Incoming Connections (Server). Build ordinary Release targets without the runtime product.
+
+The macOS runtime exposes app discovery, the AppKit view hierarchy, and native node details. It inspects visible top-level app windows even when the app loses keyboard focus. Coordinates are logical points relative to the primary display's top-left, and display metadata describes that display. Editable text and accessibility values are omitted.
+
 ## Capabilities
 
 - Simulator and paired USB Runtime discovery.

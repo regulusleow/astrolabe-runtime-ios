@@ -37,6 +37,12 @@ Runtime 不判断 `DEBUG`，也不识别业务工程的构建配置名称。只�
 
 通过 Host 检查 UI 时，保持 App 正在运行且处于前台。
 
+## 原生 macOS Debug App
+
+macOS 15 及以上的 AppKit Debug target 可链接并嵌入同一个动态 `AstrolabeRuntime` Product。加载后自动启动，只监听本机回环地址。使用 App Sandbox 时，为 Debug target 开启 Incoming Connections (Server)。普通 Release target 排除 Runtime Product。
+
+macOS Runtime 提供 App 发现、AppKit 层级与原生节点详情。App 失去键盘焦点时仍可读取可见的顶层应用窗口。屏幕坐标以主显示器左上角为原点，单位为 point，显示器元数据对应主显示器。可编辑文本及无障碍值不输出。
+
 ## 能力
 
 - 发现模拟器和已配对 USB 设备上的 Runtime。
