@@ -55,10 +55,18 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AstrolabeRuntimeAppKit",
+            dependencies: [
+                "AstrolabeRuntimeCore",
+                .product(name: "AstrolabeProtocol", package: "astrolabe-protocol")
+            ]
+        ),
+        .target(
             name: "AstrolabeRuntime",
             dependencies: [
                 "AstrolabeRuntimeCore",
                 "AstrolabeRuntimeUIKit",
+                .target(name: "AstrolabeRuntimeAppKit", condition: .when(platforms: [.macOS])),
                 .product(
                     name: "AstrolabeProtocol",
                     package: "astrolabe-protocol"

@@ -13,6 +13,9 @@ public enum RuntimePortDefaults {
 
     /// Device ports reached by the Host through USB forwarding.
     public static let deviceRange: ClosedRange<UInt16> = 47_210...47_219
+
+    /// Ports scanned by the Host for native Mac applications.
+    package static let macOSRange: ClosedRange<UInt16> = 47_230...47_239
 }
 
 public enum LocalTCPRuntimePortSelection: Equatable, Sendable {

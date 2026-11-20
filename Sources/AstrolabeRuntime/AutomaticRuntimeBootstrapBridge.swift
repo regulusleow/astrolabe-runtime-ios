@@ -12,4 +12,14 @@ package func installAutomaticAstrolabeRuntime() {
         AutomaticRuntimeInstaller.shared.install()
     }
 }
+#elseif os(macOS)
+import AstrolabeRuntimeAppKit
+
+@_cdecl("AstrolabeRuntimeInstallAutomaticBootstrap")
+package func installAutomaticAstrolabeRuntime() {
+    Task { @MainActor in
+        guard #available(macOS 15.0, *) else { return }
+        await AppKitRuntimeInstaller.install(version: AstrolabeRuntimeSDK.runtimeVersion)
+    }
+}
 #endif

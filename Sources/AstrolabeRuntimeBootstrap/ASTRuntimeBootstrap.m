@@ -8,7 +8,7 @@
 #import <Foundation/Foundation.h>
 #import <TargetConditionals.h>
 
-#if TARGET_OS_IOS
+#if TARGET_OS_IOS || TARGET_OS_OSX
 extern void AstrolabeRuntimeInstallAutomaticBootstrap(void);
 
 @interface ASTRuntimeBootstrap : NSObject
