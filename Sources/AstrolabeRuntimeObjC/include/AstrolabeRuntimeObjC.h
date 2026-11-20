@@ -6,3 +6,5 @@
 //
 
 #import "ASTRuntimeMetadataAdapter.h"
+#import "ASTSwiftUIEnvironmentStyle.h"
+#import "ASTSwiftUIVisibility.h"

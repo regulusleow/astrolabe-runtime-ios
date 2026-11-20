@@ -12,6 +12,38 @@ import Network
 import XCTest
 
 final class RuntimeServerTests: XCTestCase {
+    func testSemanticRequestsRejectUnsupportedProviderWithoutAdvertisingCapability() async throws {
+        let transport = LocalTCPRuntimeTransport(portSelection: .ephemeral)
+        let server = try RuntimeServer(configuration: RuntimeServerConfiguration(runtimeVersion: "test"), transport: transport,
+            inspectionServicesFactory: {
+                RuntimeInspectionServices(appInfoProvider: StubAppInfoProvider(appInfo: Self.makeAppInfo()),
+                    hierarchyProvider: StubHierarchyProvider(snapshot: Self.makeHierarchySnapshot()),
+                    nodeDetailProvider: StubNodeDetailProvider(detail: Self.makeNodeDetail()),
+                    additionalCapabilities: [.semanticInspection])
+            })
+        try await server.start()
+        do {
+            let client = try await Self.connectedClient(transport: transport)
+            let handshake: RuntimeResponse<RuntimeHandshakePayload> = try await client.request(RuntimeRequest(method: .handshake,
+                parameters: RuntimeHandshakeParameters(client: .init(name: "tests", version: "test"), supportedProtocolRange: .v2)))
+            guard case let .success(value) = handshake.outcome else { throw TestClientError.handshakeFailed }
+            XCTAssertFalse(value.capabilities.contains(.semanticInspection))
+            let capture: RuntimeResponse<RuntimeHierarchySnapshotPayload> = try await client.request(RuntimeRequest(method: .hierarchySnapshot,
+                parameters: RuntimeHierarchySnapshotParameters(semanticCapture: .init())))
+            guard case let .failure(error) = capture.outcome else { return XCTFail("Semantic route must reject unavailable provider") }
+            XCTAssertEqual(error.code, .capabilityUnavailable)
+            let detail: RuntimeResponse<RuntimeNodeDetailPayload> = try await client.request(RuntimeRequest(method: .nodeDetail,
+                parameters: RuntimeNodeDetailParameters(nodeID: opaqueIdentifier("semantic-missing"), snapshotID: opaqueIdentifier("missing"))))
+            guard case let .failure(error) = detail.outcome else { return XCTFail("Frozen detail must not use live provider") }
+            XCTAssertEqual(error.code, .capabilityUnavailable)
+            await client.close()
+            await server.stop()
+        } catch {
+            await server.stop()
+            throw error
+        }
+    }
+
     func testServerAcceptsProtocolV2RequestFixtures() async throws {
         let expectedAppInfo = Self.makeAppInfo(displayName: "Fixture Demo")
         let transport = LocalTCPRuntimeTransport(portSelection: .ephemeral)

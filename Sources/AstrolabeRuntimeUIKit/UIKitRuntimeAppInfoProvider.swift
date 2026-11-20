@@ -43,6 +43,13 @@ package final class UIKitRuntimeAppInfoProvider: RuntimeAppInfoProviding {
             )
         }
         guard let screen = sceneProvider.activeWindowScenes().first?.screen else {
+            if UIApplication.shared.applicationState != .active {
+                throw RuntimeError(
+                    code: try RuntimeErrorCode(rawValue: "inspection.applicationInactive"),
+                    message: "应用当前未激活，无法读取检查上下文。",
+                    recoverySuggestion: nil
+                )
+            }
             throw RuntimeError(
                 code: .internalFailure,
                 message: "No active UIWindowScene is available.",

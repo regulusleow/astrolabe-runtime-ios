@@ -66,7 +66,8 @@ final class UIKitHierarchyCollector {
     }
 
     func capture(
-        context: UIKitRuntimeWindowContext
+        context: UIKitRuntimeWindowContext,
+        redactAccessibilityValues: Bool = false
     ) throws -> RuntimeHierarchySnapshotPayload {
         try capture(
             windows: context.windows,
@@ -74,7 +75,8 @@ final class UIKitHierarchyCollector {
             interfaceOrientation: orientationName(
                 context.scene.interfaceOrientation
             ),
-            capturedAtUnixTime: Date().timeIntervalSince1970
+            capturedAtUnixTime: Date().timeIntervalSince1970,
+            redactAccessibilityValues: redactAccessibilityValues
         )
     }
 
@@ -82,7 +84,8 @@ final class UIKitHierarchyCollector {
         windows: [UIWindow],
         screen: UIScreen,
         interfaceOrientation: String,
-        capturedAtUnixTime: Double
+        capturedAtUnixTime: Double,
+        redactAccessibilityValues: Bool = false
     ) throws -> RuntimeHierarchySnapshotPayload {
         nodeRegistry.pruneReleasedObjects()
         var roots = try windows.enumerated().map { index, window in
@@ -94,7 +97,8 @@ final class UIKitHierarchyCollector {
                 screen: screen,
                 ancestorHidden: false,
                 ancestorAlpha: 1,
-                ancestorVisibleRect: screen.coordinateSpace.bounds
+                ancestorVisibleRect: screen.coordinateSpace.bounds,
+                redactAccessibilityValues: redactAccessibilityValues
             )
         }
         let layerRootOffset = roots.count
@@ -182,7 +186,8 @@ final class UIKitHierarchyCollector {
         screen: UIScreen,
         ancestorHidden: Bool,
         ancestorAlpha: Double,
-        ancestorVisibleRect: CGRect
+        ancestorVisibleRect: CGRect,
+        redactAccessibilityValues: Bool
     ) throws -> RuntimeNode {
         let nodeID = nodeRegistry.nodeID(for: view)
         let hiddenByAncestor = ancestorHidden
@@ -217,7 +222,8 @@ final class UIKitHierarchyCollector {
                 screen: screen,
                 ancestorHidden: hiddenByAncestor || view.isHidden,
                 ancestorAlpha: effectiveAlpha,
-                ancestorVisibleRect: childVisibleRect
+                ancestorVisibleRect: childVisibleRect,
+                redactAccessibilityValues: redactAccessibilityValues
             )
         }
 
@@ -243,7 +249,7 @@ final class UIKitHierarchyCollector {
                 traitCollection: view.traitCollection
             ),
             text: textPreview(for: view),
-            accessibility: accessibilityMapper.accessibilityInfo(for: view),
+            accessibility: accessibilityMapper.accessibilityInfo(for: view, redactValue: redactAccessibilityValues),
             interaction: interaction(for: view),
             availableDetailCategories: try detailCategories(for: view),
             extensions: try RuntimeExtensionMap(),

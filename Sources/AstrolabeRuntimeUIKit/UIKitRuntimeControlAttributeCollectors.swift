@@ -280,7 +280,7 @@ struct UIKitControlAttributeCollector: UIKitRuntimeAttributeCollecting {
         guard let control = object as? UIControl else {
             return []
         }
-        return [
+        var attributes = [
             attribute(.enabled, .boolean(control.isEnabled)),
             attribute(.selected, .boolean(control.isSelected)),
             attribute(.highlighted, .boolean(control.isHighlighted)),
@@ -293,6 +293,10 @@ struct UIKitControlAttributeCollector: UIKitRuntimeAttributeCollecting {
                 .string(verticalAlignmentName(control.contentVerticalAlignment))
             )
         ]
+        if let toggle = control as? UISwitch {
+            attributes.append(attribute(.isOn, .boolean(toggle.isOn)))
+        }
+        return attributes
     }
 }
 

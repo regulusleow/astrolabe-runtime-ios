@@ -11,9 +11,9 @@ import UIKit
 
 @MainActor
 struct UIKitRuntimeAccessibilityMapper {
-    func accessibilityInfo(for view: UIView) -> RuntimeAccessibility? {
+    func accessibilityInfo(for view: UIView, redactValue: Bool = false) -> RuntimeAccessibility? {
         let traits = runtimeTraits(view.accessibilityTraits)
-        let value = isSecureTextInput(view) ? nil : nonempty(view.accessibilityValue)
+        let value = redactValue || isSecureTextInput(view) ? nil : nonempty(view.accessibilityValue)
         let hasMetadata = view.isAccessibilityElement ||
             nonempty(view.accessibilityIdentifier) != nil ||
             nonempty(view.accessibilityLabel) != nil ||
