@@ -2,8 +2,8 @@ import AstrolabeProtocol
 
 /// Projects sanitized AX values; never reads live objects or infers state from text.
 enum UIKitSemanticAccessibilityFacts {
-    /// Semantic wire types permit at most 512 characters, including compiler-generated generic names.
-    static func runtimeTypeName(_ name: String) -> String { String(name.prefix(512)) }
+    /// Semantic wire types permit at most 512 Unicode scalars, including compiler-generated generic names.
+    static func runtimeTypeName(_ name: String) -> String { String(name.unicodeScalars.prefix(512)) }
 
     static func role(traits: [String], nativeRole: String?) -> String {
         if nativeRole == "input" || traits.contains("searchField") { return "input" }

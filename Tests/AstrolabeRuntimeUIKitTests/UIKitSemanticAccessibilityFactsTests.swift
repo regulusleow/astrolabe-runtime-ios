@@ -6,9 +6,9 @@ import XCTest
 final class UIKitSemanticAccessibilityFactsTests: XCTestCase {
     func testLongTypeNamesRemainInsideTheSemanticWireContract() throws {
         for name in ["SwiftUI.AccessibilityNode", String(repeating: "T", count: 512),
-                     String(repeating: "类型", count: 300)] {
+                     String(repeating: "类型", count: 300), String(repeating: "x\u{301}", count: 260)] {
             let bounded = UIKitSemanticAccessibilityFacts.runtimeTypeName(name)
-            XCTAssertEqual(bounded, String(name.prefix(512)))
+            XCTAssertEqual(bounded.unicodeScalars.count, min(512, name.unicodeScalars.count))
             let node = try RuntimeSemanticNode(nodeID: .init(rawValue: "semantic-1"), parentID: nil,
                 siblingIndex: 0, role: "container", runtimeType: .init(name: bounded, ancestors: []),
                 availableDetailCategories: [], children: [])

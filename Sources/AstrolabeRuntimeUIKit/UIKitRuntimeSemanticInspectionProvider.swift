@@ -94,7 +94,7 @@ package final class UIKitRuntimeSemanticInspectionProvider: RuntimeSemanticInspe
                 if reason == nil { candidates.append(window) }
                 inventory.append(try RuntimeInspectionWindow(windowID: registry.nodeID(for: window),
                     sceneID: RuntimeOpaqueIdentifier(rawValue: scene.session.persistentIdentifier),
-                    runtimeType: .init(name: String(reflecting: type(of: window)), ancestors: []),
+                    runtimeType: .init(name: UIKitSemanticAccessibilityFacts.runtimeTypeName(String(reflecting: type(of: window))), ancestors: []),
                     bounds: validBounds(window.bounds) ? runtimeRect(window.bounds, space: .local) : nil,
                     level: window.windowLevel.rawValue.isFinite ? Double(window.windowLevel.rawValue) : nil,
                     exclusionReason: reason))
