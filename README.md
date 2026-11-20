@@ -7,7 +7,7 @@ data to the Astrolabe Host so agents can inspect UI in Debug builds. Link and
 embed the dynamic framework to integrate; the Runtime starts automatically when
 an eligible application process loads it.
 
-Current package release: `2.2.0`.
+Current package release: `2.3.0`.
 
 ## Requirements
 

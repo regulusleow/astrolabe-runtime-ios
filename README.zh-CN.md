@@ -5,7 +5,7 @@
 Astrolabe Runtime for iOS 在 Debug 环境中向 Astrolabe Host 提供 UIKit、Core Animation 和 SwiftUI
 界面数据，供 Agent 检查 UI。只需链接并嵌入动态 Framework，Runtime 会在符合条件的 App 进程加载时自动启动。
 
-当前 Package 版本：`2.2.0`。
+当前 Package 版本：`2.3.0`。
 
 ## 环境要求
 
