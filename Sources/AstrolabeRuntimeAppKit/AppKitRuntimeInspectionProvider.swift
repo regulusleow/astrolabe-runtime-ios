@@ -234,8 +234,12 @@ final class AppKitRuntimeInspectionProvider:
         let textView = view as? NSTextView
         let interactive = control.map { !($0 is NSTextField) || ($0 as? NSTextField)?.isEditable == true }
             ?? (textView?.isEditable == true || textView?.isSelectable == true)
+        let focused = view?.window.map { window in
+            guard let responder = window.firstResponder else { return false }
+            return responder === view || responder === (control as? NSTextField)?.currentEditor()
+        }
         return RuntimeInteraction(interactive: interactive, enabled: control?.isEnabled, selected: nil,
-                                  focused: view?.window.map { $0.firstResponder === view })
+                                  focused: focused)
     }
 
     private func makeVisibility(
