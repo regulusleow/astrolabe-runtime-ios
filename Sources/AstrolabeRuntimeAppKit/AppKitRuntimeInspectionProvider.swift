@@ -191,19 +191,35 @@ final class AppKitRuntimeInspectionProvider:
     }
 
     private func textPreview(_ view: NSView) -> String? {
-        if let text = view as? NSTextField {
-            // 共享编辑器和各类可编辑控件的值不属于一期文本投影。
-            guard !text.isEditable, !(text is NSSecureTextField), !(text.cell is NSSecureTextFieldCell) else { return nil }
-            return text.stringValue
+        if let field = view as? NSTextField {
+            return permitsTextPreview(field) ? field.stringValue : nil
+        }
+        if let textView = view as? NSTextView {
+            return permitsTextPreview(textView) ? textView.string : nil
         }
         return (view as? NSButton)?.title
+    }
+
+    private func permitsTextPreview(_ view: NSView) -> Bool {
+        // AppKit 的共享编辑器和输入控件的内部子视图也可能持有编辑中的值。
+        var ancestor: NSView? = view
+        while let current = ancestor {
+            if let field = current as? NSTextField,
+               field.isEditable || field is NSSecureTextField || field.cell is NSSecureTextFieldCell {
+                return false
+            }
+            if let textView = current as? NSTextView, textView.isEditable || textView.isFieldEditor {
+                return false
+            }
+            ancestor = current.superview
+        }
+        return true
     }
 
     private func role(of view: NSView) -> String {
         switch view {
         case is NSButton: return "button"
-        case let field as NSTextField: return field.isEditable || field is NSSecureTextField ? "input" : "text"
-        case is NSTextView: return "input"
+        case is NSTextField, is NSTextView: return permitsTextPreview(view) ? "text" : "input"
         case is NSScrollView: return "scroll"
         case is NSTableView, is NSCollectionView: return "list"
         case is NSStackView: return "stack"
@@ -215,7 +231,9 @@ final class AppKitRuntimeInspectionProvider:
     private func interaction(for object: AnyObject) -> RuntimeInteraction {
         let view = object as? NSView
         let control = object as? NSControl
-        let interactive = control.map { !($0 is NSTextField) || ($0 as? NSTextField)?.isEditable == true } ?? (view is NSTextView)
+        let textView = view as? NSTextView
+        let interactive = control.map { !($0 is NSTextField) || ($0 as? NSTextField)?.isEditable == true }
+            ?? (textView?.isEditable == true || textView?.isSelectable == true)
         return RuntimeInteraction(interactive: interactive, enabled: control?.isEnabled, selected: nil,
                                   focused: view?.window.map { $0.firstResponder === view })
     }
